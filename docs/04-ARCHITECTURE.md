@@ -1,232 +1,556 @@
 # Architecture
 
-> Version: v0.1  
-> Status: No final production stack is locked. This document defines a staged architecture strategy aligned with validation.
+> Version: v0.2  
+> Last updated: 2026-08-31  
+> Status: Approved MVP architecture for Stage 1–3 implementation.  
+> Canonical technical decisions are recorded in `docs/09-DECISIONS.md`.
+
+---
 
 ## Architecture Status
 
-No final technical architecture has been chosen yet.
+Stage 0 is complete.
 
-The recommended approach is to **start hybrid/manual**, collect real marketplace evidence, and only move to a custom product after repetitive workflows are proven.
+The project has selected the following technical direction:
 
-Any final technology choice must be recorded in `09-DECISIONS.md`.
+- **Frontend / web application:** Next.js
+- **Application language:** TypeScript
+- **Backend application layer:** Next.js server-side functionality
+- **Backend platform:** Supabase
+- **Database:** PostgreSQL through Supabase
+- **Authentication:** Supabase Auth when authentication enters scope
+- **Authorization:** Supabase Row Level Security plus server-side authorization
+- **Storage:** Supabase Storage only when justified
+- **Source control:** Git + GitHub
+- **Database change management:** Version-controlled Supabase migrations
+
+The architecture is intentionally simple. The project will not introduce a separate Express, NestJS, or other custom API service unless a proven requirement later justifies it.
+
+Choosing a custom web stack does not change the product strategy:
+
+- Stage 1–2 remain manual/concierge-oriented.
+- Matching remains curated rather than open bidding.
+- Automation is added only when repeated operational pain is proven.
+
+---
 
 ## MVP Architecture Goals
 
-- Minimize build time.
-- Minimize operating cost.
-- Support fast learning.
-- Keep data easy to inspect and export.
-- Avoid over-engineering marketplace automation before validation.
-- Make manual fallback possible.
-- Keep private requests and contact information access-controlled.
-- Avoid storing payment-card data directly.
+- Minimize build time and operating cost.
+- Support fast marketplace validation.
+- Keep the codebase understandable for a solo founder using Codex.
+- Keep data relational, inspectable, and exportable.
+- Keep private student/provider/project information access-controlled.
+- Make manual operational fallback possible.
+- Avoid unnecessary services and infrastructure.
+- Support incremental automation rather than a full marketplace build.
+- Keep database changes reproducible through migrations.
+- Never store raw payment-card data.
+
+---
 
 ## Constraints
 
-- **Budget:** Working target is minimal/pre-revenue infrastructure; ideally near free tier and under roughly USD 50/month until real usage justifies more.
-- **Timeline:** First validation should begin within days, not months. Lightweight product work should be measured in weeks.
-- **Team skills:** Assume a solo founder/vibe-coder using Codex, with limited time for DevOps.
-- **Expected traffic:** Pilot-scale traffic, likely under 1,000 monthly active users initially.
-- **Manual operations tolerance:** High during Stage 1–2; manual matching is intentional.
-- **Compliance or privacy constraints:** Personal contact data, private project descriptions/files, and payment metadata require restricted access. Academic-integrity screening is required.
-- **Reliability:** The system does not need hyperscale architecture; it does need reliable data capture and recoverable exports.
+### Budget
 
-## Candidate Approaches
+- Pre-revenue infrastructure should remain close to free-tier usage where practical.
+- Working target: under roughly USD 50/month until real usage justifies more.
 
-### No-Code or Low-Code
+### Timeline
 
-- **Tools considered:** Tally/Google Forms for intake, Airtable/Google Sheets for operations, Notion for procedures, email or approved messaging channel for coordination.
-- **Pros:**
-  - Fastest launch.
-  - Cheapest way to validate demand/supply.
-  - Data is easy to inspect manually.
-  - Little engineering risk.
-- **Cons:**
-  - Weak user experience at scale.
-  - Permissions and data-model complexity become awkward.
-  - Manual work grows quickly.
-  - Harder to create a coherent marketplace brand/product.
-- **Validation fit:** Excellent for Stage 1 manual validation.
+- Product iterations should be measured in days or weeks, not months.
+- Ship the first useful vertical slice before broad feature expansion.
 
-### Simple Custom Web App
+### Team
 
-- **Tools considered (candidates, not decisions):**
-  - Next.js + TypeScript.
-  - Managed PostgreSQL/Auth/Storage such as Supabase.
-  - Vercel or comparable managed hosting.
-  - Transactional email provider later.
-  - Stripe or another reputable payment processor later.
-- **Pros:**
-  - One coherent user experience.
-  - Easier to automate repeated workflows.
-  - Stronger access control and data relationships.
-  - Better foundation for user accounts and payments.
-- **Cons:**
-  - More build time.
-  - More security/maintenance responsibility.
-  - High risk of overbuilding before validation.
-- **Validation fit:** Good for Stage 3 after manual matching is repeatable.
+- Solo founder / vibe-coder using Codex.
+- Limited DevOps time.
+- Prefer managed services over self-hosted infrastructure.
 
-### Hybrid Manual Operations
+### Expected Traffic
 
-- **Tools considered:** Simple landing/intake experience + structured database/spreadsheet + manual operator workflow + external communication.
-- **Pros:**
-  - Looks more trustworthy than pure forms.
-  - Preserves manual learning.
-  - Can automate only the highest-friction steps.
-  - Easier migration path to a custom app.
-- **Cons:**
-  - Some duplicated operational work.
-  - Requires discipline to keep source-of-truth clear.
-- **Validation fit:** Recommended baseline for Stage 1–2.
+- Pilot-scale traffic initially.
+- No hyperscale architecture is required.
 
-## Recommended Stage-by-Stage Architecture
+### Operational Model
 
-### Stage 1 — Manual Validation
+- Manual operations remain acceptable during Stage 1–2.
+- Operator-led matching, review, trust checks, and qualitative feedback are intentional.
 
-Use the lightest tools capable of capturing:
+### Security / Privacy
 
-- Student requests.
-- Provider applications.
-- Match records.
-- Project outcomes.
-- Acquisition source.
-- Payment/willingness-to-pay evidence.
+- Student contact data is private.
+- Provider private data is restricted.
+- Project descriptions/files may be sensitive.
+- Payment metadata must be protected.
+- Academic-integrity screening is mandatory.
 
-No user accounts, native chat, bidding, or escrow.
+---
 
-### Stage 2 — Concierge MVP
+## High-Level Architecture
 
-Add a small custom or semi-custom interface only if manual operations reveal clear repeated pain.
+```text
+                         Browser
+                            │
+                            ▼
+                    ┌───────────────┐
+                    │    Next.js    │
+                    ├───────────────┤
+                    │ UI            │
+                    │ Server        │
+                    │ Components    │
+                    │ Server Actions│
+                    │ Route Handlers│
+                    └───────┬───────┘
+                            │
+                            ▼
+                    ┌───────────────┐
+                    │   Supabase    │
+                    ├───────────────┤
+                    │ PostgreSQL    │
+                    │ Auth          │
+                    │ RLS           │
+                    │ Storage       │
+                    │ Platform APIs │
+                    └───────────────┘
+```
 
-Likely first automations:
+### Browser Responsibilities
 
-- Cleaner request intake.
-- Provider filtering.
-- Admin pipeline/status updates.
-- Email notifications.
-- Outcome reporting.
+- Render interactive UI.
+- Collect user input.
+- Call approved application actions.
+- Display only authorized data.
 
-### Stage 3 — Lightweight Product
+The browser must never contain privileged Supabase credentials.
 
-Only after repeated successful paid matches:
+### Next.js Responsibilities
 
-- User authentication.
-- Student dashboard.
-- Provider profiles.
-- Match workflow.
-- Integrated payment.
-- Review/reputation.
-- Basic analytics.
+- Page rendering.
+- Server Components.
+- Server-side business logic.
+- Sensitive validation and authorization.
+- Admin/operator workflows.
+- Future integration orchestration.
+- Secure access to server-only environment variables.
+- Route handlers when required.
 
-## Core System Capabilities
+### Supabase Responsibilities
 
-- **Student request intake:** Public form with validation, privacy notice, integrity confirmation, and source attribution.
-- **Provider intake:** Application form with skills, portfolio, availability, rate expectations, and policy agreement.
-- **Admin review:** Restricted interface or spreadsheet for approving requests/providers.
-- **Matching workflow:** Link request and provider; record proposed/accepted/declined status and reasons.
-- **Status tracking:** Request, provider, match, and project outcome statuses.
-- **Payment or payment-intent tracking:** Store status/amount/reference only; never raw card data.
-- **Notifications:** Manual or email first; automate after volume proves need.
-- **Analytics:** Funnel counts, match speed, conversion, completion, disputes, source attribution.
+- PostgreSQL database.
+- Managed authentication.
+- Database authorization with RLS.
+- Managed storage when needed.
+- Database APIs and persistent marketplace data.
 
-## Integration Candidates
+---
 
-Do not choose integrations until needed.
+## Client / Server Boundary
 
-- **Forms:** Tally, Google Forms, or custom form.
-- **Spreadsheet or database:** Google Sheets/Airtable initially; managed PostgreSQL later.
-- **Email:** Manual email initially; transactional provider later.
-- **Messaging:** External channel selected for pilot; do not build native chat initially.
-- **Payments:** Reputable payment processor such as Stripe where legally/regionally appropriate; exact provider remains open.
-- **Analytics:** Simple event/count tracking first; product analytics later if needed.
-- **File uploads:** Avoid unless clearly needed. If introduced, use managed private storage and signed/expiring access URLs.
+### Client-Side Code
 
-## Data Flow Draft
+Use Client Components only when browser interactivity is required.
+
+Examples:
+
+- Form interaction.
+- Local UI state.
+- Modal/dropdown behavior.
+- Optimistic feedback where appropriate.
+
+Client code must not:
+
+- Contain service-role credentials.
+- Make privileged admin decisions.
+- Bypass RLS.
+- Contain secrets.
+- Be the only authorization layer.
+
+### Server-Side Code
+
+Prefer server-side logic for:
+
+- Admin/operator actions.
+- Private marketplace data.
+- Authorization-sensitive operations.
+- Creating/updating curated match records.
+- Trust and safety decisions.
+- Future payment operations.
+- Future transactional integrations.
+- Any use of privileged Supabase credentials.
+
+---
+
+## Authentication Model
+
+Authentication should be introduced when the relevant roadmap stage requires it.
+
+When implemented:
+
+- Use Supabase Auth.
+- Do not implement custom password storage.
+- Keep auth identity separate from marketplace profile/business fields.
+- Use authenticated user ID as the authorization anchor.
+- Require server-side ownership/role checks for sensitive operations.
+- Require MFA for admin/operator accounts when supported and practical.
+
+### Initial Roles
+
+- `student`
+- `provider`
+- `admin`
+
+Avoid complex role hierarchies until proven necessary.
+
+---
+
+## Authorization and RLS
+
+RLS is required for browser-accessible private tables.
+
+Security model:
+
+```text
+Default deny
+    ↓
+Explicit policy
+    ↓
+Valid user / role / ownership
+```
+
+### Profiles
+
+- Users may access their own private profile.
+- Public provider fields are exposed only when explicitly intended.
+- Admin may access records needed for operations.
+
+### Projects
+
+- Students may create/read/update their own project subject to status rules.
+- Providers should not automatically see all private project details.
+- Admin/operator may review relevant project requests.
+
+### Matches / Proposals
+
+The MVP does not use open bidding.
+
+If the existing `proposals` table represents operator-curated candidate matches, document and model that explicitly. Do not expose a public “bid on every project” workflow. Rename/refactor later if the current name creates domain confusion.
+
+### Messages / Conversations
+
+These tables may exist but are not part of initial product scope. Do not expose them until native messaging is explicitly approved.
+
+---
+
+## Database Architecture
+
+### System of Record
+
+PostgreSQL in Supabase is the system of record.
+
+### Schema Management
+
+All future schema changes should follow:
+
+```text
+Migration
+   ↓
+Git
+   ↓
+Review
+   ↓
+Apply
+```
+
+After migration baseline is established, avoid direct production-dashboard schema edits unless necessary.
+
+If a manual change occurs:
+
+1. Capture it in a migration.
+2. Commit it to Git.
+3. Update documentation if the domain model changed.
+
+### Type Safety
+
+Generate TypeScript database types from the Supabase schema and prefer them over duplicated manual interfaces where practical.
+
+### Existing Tables
+
+Current tables may include:
+
+- `profiles`
+- `projects`
+- `proposals`
+- `contracts`
+- `conversations`
+- `messages`
+- `favorites`
+- `reviews`
+
+Their existence does not mean their features must be implemented now. The PRD and Roadmap determine feature scope.
+
+---
+
+## MVP Vertical-Slice Strategy
+
+### Vertical Slice 1
+
+```text
+Landing
+   ↓
+Student submits project request
+   ↓
+Project stored in Supabase
+   ↓
+Operator reviews request
+   ↓
+Request status updated
+```
+
+### Vertical Slice 2
+
+```text
+Provider application
+   ↓
+Provider data stored
+   ↓
+Operator reviews provider
+   ↓
+Provider approved / waitlisted / rejected
+```
+
+### Vertical Slice 3
+
+```text
+Reviewed request
+   ↓
+Operator identifies candidate providers
+   ↓
+Provider interest confirmed
+   ↓
+Up to 3 curated options
+   ↓
+Student selects provider
+   ↓
+Match outcome tracked
+```
+
+### Later Slices
+
+Only after evidence justifies them:
+
+- Authentication/dashboard.
+- Payment integration.
+- Reviews/reputation.
+- Automated notifications.
+- Storage/uploads.
+- Native messaging.
+- Referral automation.
+- Advanced matching.
+
+---
+
+## Product Data Flow
 
 ```text
 Student acquisition source
         ↓
-Student request form
+Project request
         ↓
-Request record
-        ↓
-Operator review + policy check
-        ↓
-Provider search/filter
-        ↓
-Candidate match record(s)
-        ↓
-Provider interest/availability
-        ↓
-Student selection
-        ↓
-Accepted match
-        ↓
-Scope + price + deadline recorded
-        ↓
-Work performed externally
-        ↓
-Outcome + payment status + feedback
-        ↓
-Validation metrics + product decisions
-```
-
-Provider data follows a parallel path:
-
-```text
-Provider acquisition source
-        ↓
-Provider application
+Database record
         ↓
 Operator review
         ↓
-Approved provider pool
+Integrity / quality check
         ↓
-Relevant opportunity
+Provider filter / review
         ↓
-Match response + outcome history
+Curated candidate record(s)
+        ↓
+Provider interest
+        ↓
+Student receives up to 3 options
+        ↓
+Student selects provider
+        ↓
+Scope + price + deadline
+        ↓
+Project begins
+        ↓
+Outcome tracked
+        ↓
+Validation metrics
 ```
 
-## Operational Model
+This is not an open bidding architecture.
 
-### What will be manual?
+---
+
+## Manual vs Automated Responsibilities
+
+### Manual During Stage 1–2
 
 - Request quality review.
-- Academic-integrity screening.
+- Academic-integrity review.
 - Provider vetting.
 - Candidate selection.
-- Clarification of ambiguous briefs.
+- Provider interest confirmation.
+- Clarification of project briefs.
 - Initial introduction.
 - Dispute review.
-- Qualitative interview/feedback.
-- Validation analysis.
+- Qualitative feedback.
+- Marketplace learning analysis.
 
-### What may be automated early?
+### Safe Early Automation
 
-Only repetitive low-risk steps:
-
-- Form confirmation.
-- Status reminders.
-- Provider filtering.
+- Form validation.
+- Submission confirmations.
+- Status updates.
+- Provider filters.
+- Operator dashboards.
 - Basic funnel reporting.
-- Templated messages.
+- Templated notifications.
 
-### What evidence is needed before automating?
+### Automation Gate
 
-Automate a workflow only when:
+Automate only when:
 
-1. It has occurred repeatedly.
-2. The manual steps are stable.
-3. The operator can describe clear rules.
+1. The workflow occurs repeatedly.
+2. The manual process is stable.
+3. Rules can be clearly described.
 4. Automation saves meaningful time or improves conversion.
 5. Failure modes are understood.
 
+---
+
+## File and Storage Strategy
+
+Initial Stage 1 policy:
+
+- Prefer external links for project assets.
+- Do not require direct file uploads.
+
+If uploads become necessary:
+
+- Use Supabase Storage or another approved managed private-storage provider.
+- Files are private by default.
+- Use signed/expiring access URLs where appropriate.
+- Validate size/type.
+- Do not expose public bucket URLs for private data.
+
+---
+
+## Environment Variables
+
+When implementation begins, use `.env.example` with placeholders only.
+
+Expected categories:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Rules:
+
+- Browser-safe/public variables may be used by browser-safe clients.
+- Privileged keys remain server-only.
+- Never commit real secrets.
+- Never prefix privileged credentials with `NEXT_PUBLIC_`.
+- Exact names should follow the SDK/version actually used.
+
+---
+
+## Deployment
+
+Production hosting is not finalized.
+
+The eventual host should:
+
+- Support Next.js reliably.
+- Support required server-side execution.
+- Support environment variables/secrets.
+- Integrate cleanly with GitHub.
+- Support preview deployments if useful.
+- Keep operational overhead low.
+
+Vercel is a candidate, not yet a locked decision.
+
+---
+
+## Observability and Analytics
+
+Do not introduce a large observability stack initially.
+
+Early metrics can come from:
+
+- Database counts/queries.
+- Admin funnel reporting.
+- Basic application logs.
+- Manual operational tracking.
+
+Add dedicated analytics/error monitoring only when it solves a real need.
+
+---
+
+## Payment Architecture
+
+Payment integration is deferred until willingness-to-pay and fee hypotheses are validated.
+
+When introduced:
+
+- Use a reputable third-party payment provider.
+- Never store raw card data.
+- Keep privileged payment API calls server-side.
+- Store only necessary transaction references/status in Supabase.
+- Document refund/dispute behavior before launch.
+
+The payment provider remains undecided.
+
+---
+
+## Deferred Architecture
+
+Explicitly deferred:
+
+- Separate microservices.
+- Separate Node/Nest/Express backend.
+- Native mobile app.
+- Native real-time chat.
+- Automated escrow.
+- AI matching.
+- Advanced search infrastructure.
+- Dedicated queue infrastructure.
+- Complex event-driven architecture.
+- Multi-region database architecture.
+- Enterprise authorization hierarchy.
+
+Do not add these without a documented decision.
+
+---
+
+## Engineering Principles
+
+1. Prefer Server Components by default where appropriate.
+2. Use Client Components only where browser interaction requires them.
+3. Keep business rules outside presentational UI components.
+4. Validate user-controlled input server-side.
+5. Enforce authorization at application and database layers.
+6. Keep database schema reproducible.
+7. Prefer managed infrastructure.
+8. Build vertical slices rather than technical layers.
+9. Defer features not required by the current roadmap.
+10. Update `09-DECISIONS.md` when a major technical choice changes.
+
+---
+
 ## Open Questions
 
-- **Open Question:** Which low-code/manual tools will be used in Stage 1?
-- **Open Question:** What traction threshold triggers a custom web app?
-- **Open Question:** If a custom app is built, is Supabase the best fit for auth/database/storage or should alternatives be compared?
-- **Open Question:** Which payment provider is supported in the launch geography and business structure?
-- **Open Question:** What communication channel will be used before native messaging is justified?
+- Which production hosting provider will be used?
+- Which transactional email provider will be used?
+- Which payment provider will be used?
+- Which analytics/error-monitoring provider will be used if needed?
+- Should `proposals` be renamed/refactored to reflect curated matching?
+- At what roadmap milestone should Supabase Auth become user-facing?
+- When should direct file uploads replace external-link-only assets?
