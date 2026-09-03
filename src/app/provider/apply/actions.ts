@@ -18,6 +18,7 @@ export async function submitProviderApplication(formData: FormData) {
   }
 
   const input = parsed.data;
+  const confirmedAt = new Date().toISOString();
 
   const { error } = await createSupabaseAdminClient()
     .from("provider_applications")
@@ -32,8 +33,8 @@ export async function submitProviderApplication(formData: FormData) {
       rate_expectations: input.rate_expectations,
       source_channel: input.source_channel,
       age_eligible_confirmed: input.age_eligible_confirmed,
-      privacy_acknowledged_at: input.privacy_acknowledged_at,
-      policy_accepted_at: input.policy_accepted_at,
+      privacy_acknowledged_at: confirmedAt,
+      policy_accepted_at: confirmedAt,
     });
 
   if (error) {
