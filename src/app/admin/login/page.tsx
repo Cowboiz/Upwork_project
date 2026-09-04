@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loginAdmin } from "./actions";
 
 type AdminLoginPageProps = {
@@ -11,6 +13,21 @@ export default async function AdminLoginPage({
   searchParams,
 }: AdminLoginPageProps) {
   const params = await searchParams;
+  const supabase = await createSupabaseServerClient();
+  const { data: claimsData, error: claimsError } =
+    await supabase.auth.getClaims();
+  let errorMessage = params.error;
+
+  if (!claimsError && claimsData?.claims.sub) {
+    const { data: isAdmin } = await supabase.rpc("is_admin");
+
+    if (isAdmin) {
+      redirect("/admin/requests");
+    }
+
+    await supabase.auth.signOut();
+    errorMessage = "This account is not authorized for admin access.";
+  }
 
   return (
     <main className="page-shell grid min-h-screen content-center py-10">
@@ -28,8 +45,8 @@ export default async function AdminLoginPage({
           </h1>
         </div>
 
-        {params.error ? (
-          <div className="notice-error mt-6">{params.error}</div>
+        {errorMessage ? (
+          <div className="notice-error mt-6">{errorMessage}</div>
         ) : null}
 
         <form action={loginAdmin} className="mt-6 grid gap-5">
