@@ -136,11 +136,11 @@ export default async function ProviderApplyPage({
                 <span>I confirm I am 18 or older.</span>
               </label>
               <label className="flex gap-3">
-                <input name="privacy_acknowledged_at" required type="checkbox" />
+                <input name="privacy_confirmed" required type="checkbox" />
                 <span>I understand my application is reviewed privately.</span>
               </label>
               <label className="flex gap-3">
-                <input name="policy_accepted_at" required type="checkbox" />
+                <input name="policy_confirmed" required type="checkbox" />
                 <span>
                   I will not accept requests for prohibited academic cheating,
                   exams, impersonation, or deceptive submission work.
