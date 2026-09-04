@@ -19,6 +19,14 @@ export default async function ProtectedAdminLayout({
           <h1 className="mt-2 text-2xl font-bold text-slate-950">
             Admin review
           </h1>
+          <nav className="mt-3 flex flex-wrap gap-3 text-sm font-bold">
+            <Link className="text-blue-700" href="/admin/requests">
+              Requests
+            </Link>
+            <Link className="text-blue-700" href="/admin/providers">
+              Providers
+            </Link>
+          </nav>
         </div>
 
         <form action={logoutAdmin}>
