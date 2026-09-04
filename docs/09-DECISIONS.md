@@ -36,6 +36,7 @@
 | 2026-08-31 | Treat `02-PRD.md` as canonical for validation metrics | Metrics appear in multiple documents and can drift. | Duplicate everywhere; PRD canonical; Decisions canonical | PRD is the correct product-requirements source for metric definitions. | Active documentation decision |
 | 2026-08-31 | Treat `07-SECURITY.md` as canonical for security and academic-integrity policy | Security rules appear across documents. | Duplicate everywhere; Security canonical | Keeps detailed security/policy rules in one maintainable source. | Active documentation decision |
 | 2026-08-31 | Treat `09-DECISIONS.md` as canonical for finalized decisions | Major choices need one historical source. | Scatter decisions; one decision log | Prevents silent divergence between planning documents. | Active documentation decision |
+| 2026-09-03 | Introduce operator/admin authentication during Stage 1 | Private project-request review needs secure operational access before marketplace-user accounts are justified. | Keep admin review manual outside the app; use service-role admin UI; use Supabase Auth with RLS; introduce all user accounts now | Supabase Auth plus RLS and `public.is_admin()` protects private operational workflows without exposing service-role credentials or adding student/provider auth. | Active security/implementation decision |
 
 ---
 
@@ -72,6 +73,8 @@ Supabase
 - Repository hosting: GitHub
 - Primary branches: `main` and `dev`
 
+Operator/admin authentication is now in scope for Stage 1 private operational workflows. Student and provider authentication remains deferred until marketplace-user accounts are justified by the roadmap.
+
 ### Explicitly Not Required for Initial MVP
 
 - Separate Express/NestJS backend
@@ -99,6 +102,7 @@ Supabase
 - Schema changes are version controlled.
 - RLS protects browser-accessible private data.
 - Privileged credentials remain server-only.
+- Admin dashboard reads and writes use authenticated Supabase sessions, RLS, and `public.is_admin()`; they must not use service-role credentials.
 - Table existence does not define product scope.
 
 ### Manual / Curated Matching

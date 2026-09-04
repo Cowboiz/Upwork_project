@@ -185,6 +185,8 @@ Prefer server-side logic for:
 
 Authentication should be introduced when the relevant roadmap stage requires it.
 
+Operator/admin authentication is allowed during Stage 1 as security infrastructure for private operational review workflows. This does not mean student or provider accounts are in scope. Marketplace-user authentication remains deferred until evidence justifies account-based student/provider workflows.
+
 When implemented:
 
 - Use Supabase Auth.
@@ -322,18 +324,18 @@ Provider approved / waitlisted / rejected
 ### Vertical Slice 3
 
 ```text
-Reviewed request
+Admin authentication
    ↓
-Operator identifies candidate providers
+Operator opens private request dashboard
    ↓
-Provider interest confirmed
+Operator reviews project request
    ↓
-Up to 3 curated options
+Request status and integrity status updated explicitly
    ↓
-Student selects provider
-   ↓
-Match outcome tracked
+Internal notes and rejection reason tracked
 ```
+
+Curated matching remains a later slice after authenticated request review is secure.
 
 ### Later Slices
 
