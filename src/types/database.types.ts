@@ -999,6 +999,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_request_candidate: {
+        Args: { p_candidate_id: string; p_request_id: string }
+        Returns: undefined
+      }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
