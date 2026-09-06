@@ -8,6 +8,7 @@ import {
   rejectRequest,
   updateInternalNotes,
 } from "./actions";
+import { MatchingSection } from "./matching-section";
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -66,6 +67,33 @@ export default async function AdminRequestDetailPage({
   if (error || !request) {
     notFound();
   }
+
+  const [
+    { data: candidates, error: candidatesError },
+    { data: providerSummaries, error: providersError },
+  ] = await Promise.all([
+    supabase
+      .from("request_candidates")
+      .select(
+        "id, project_request_id, provider_application_id, candidate_rank, provider_response_status, student_decision_status, proposed_price, agreed_price, currency, scope_summary, agreed_deadline, declined_by, decline_reason, internal_notes",
+      )
+      .eq("project_request_id", request.id),
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name, skills, availability, rate_expectations, status")
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (candidatesError || providersError) {
+    notFound();
+  }
+
+  const providerById = new Map(
+    providerSummaries.map((provider) => [provider.id, provider]),
+  );
+  const addableProviders = providerSummaries.filter(
+    (provider) => provider.status === "approved",
+  );
 
   return (
     <section className="grid gap-6">
@@ -171,6 +199,13 @@ export default async function AdminRequestDetailPage({
               <p className="mt-4 text-slate-700">Not provided</p>
             )}
           </section>
+
+          <MatchingSection
+            approvedProviders={addableProviders}
+            candidates={candidates}
+            providerById={providerById}
+            request={request}
+          />
         </div>
 
         <aside className="grid content-start gap-6">
