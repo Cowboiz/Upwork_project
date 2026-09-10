@@ -8,6 +8,7 @@ import {
   rejectRequest,
   updateInternalNotes,
 } from "./actions";
+import { EngagementSection } from "./engagement-section";
 import { MatchingSection } from "./matching-section";
 
 function formatDate(value: string | null) {
@@ -23,6 +24,31 @@ function formatDate(value: string | null) {
 
 function formatStatus(value: string) {
   return value.replaceAll("_", " ");
+}
+
+function agreementTermsAnchor(candidateId: string) {
+  return `candidate-commercial-${candidateId}`;
+}
+
+function savedMessage(saved: string) {
+  switch (saved) {
+    case "student_accepted_terms_needed":
+      return "Student decision saved. Next: add agreed price and deadline.";
+    case "student_decision":
+      return "Student decision saved.";
+    case "candidate_details":
+      return "Candidate details saved.";
+    case "engagement_created":
+      return "Project engagement created.";
+    case "engagement_status":
+      return "Engagement status saved.";
+    case "payment_status":
+      return "Payment status saved.";
+    case "engagement_notes":
+      return "Feedback and signals saved.";
+    default:
+      return "Request update saved.";
+  }
 }
 
 function DetailItem({
@@ -94,6 +120,20 @@ export default async function AdminRequestDetailPage({
   const addableProviders = providerSummaries.filter(
     (provider) => provider.status === "approved",
   );
+  const acceptedCandidate = candidates.find(
+    (candidate) => candidate.student_decision_status === "accepted",
+  );
+  const { data: engagement, error: engagementError } = acceptedCandidate
+    ? await supabase
+        .from("project_engagements")
+        .select("*")
+        .eq("request_candidate_id", acceptedCandidate.id)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (engagementError) {
+    notFound();
+  }
 
   return (
     <section className="grid gap-6">
@@ -127,7 +167,21 @@ export default async function AdminRequestDetailPage({
       ) : null}
 
       {notices.saved ? (
-        <div className="notice-success">Request update saved.</div>
+        <div className="notice-success">
+          {savedMessage(notices.saved)}
+          {notices.saved === "student_accepted_terms_needed" &&
+          acceptedCandidate ? (
+            <>
+              {" "}
+              <a
+                className="font-bold underline"
+                href={`#${agreementTermsAnchor(acceptedCandidate.id)}`}
+              >
+                Complete agreement terms
+              </a>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -205,6 +259,17 @@ export default async function AdminRequestDetailPage({
             candidates={candidates}
             providerById={providerById}
             request={request}
+          />
+
+          <EngagementSection
+            acceptedCandidate={acceptedCandidate}
+            engagement={engagement ?? undefined}
+            provider={
+              acceptedCandidate?.provider_application_id
+                ? providerById.get(acceptedCandidate.provider_application_id)
+                : undefined
+            }
+            requestId={request.id}
           />
         </div>
 
