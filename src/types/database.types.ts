@@ -1003,7 +1003,19 @@ export type Database = {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined
       }
+      create_project_engagement: {
+        Args: { p_candidate_id: string; p_request_id: string }
+        Returns: string
+      }
       is_admin: { Args: never; Returns: boolean }
+      update_project_engagement_status: {
+        Args: {
+          p_engagement_id: string
+          p_request_id: string
+          p_status: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

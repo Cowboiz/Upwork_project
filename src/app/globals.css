@@ -12,6 +12,8 @@
   --success-text: #065f46;
   --error-bg: #fef2f2;
   --error-text: #991b1b;
+  --info-bg: #eff6ff;
+  --info-text: #1e3a8a;
 }
 
 * {
@@ -110,6 +112,13 @@ textarea:focus-visible {
   background: var(--primary-dark);
 }
 
+.button-primary:disabled {
+  background: #94a3b8;
+  color: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 .button-secondary {
   display: inline-flex;
   min-height: 44px;
@@ -123,8 +132,16 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.button-secondary:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 .notice-success,
-.notice-error {
+.notice-error,
+.notice-info {
   border-radius: 8px;
   padding: 14px 16px;
   line-height: 1.5;
@@ -138,4 +155,9 @@ textarea:focus-visible {
 .notice-error {
   background: var(--error-bg);
   color: var(--error-text);
+}
+
+.notice-info {
+  background: var(--info-bg);
+  color: var(--info-text);
 }

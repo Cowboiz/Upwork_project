@@ -51,6 +51,41 @@ function formatPrice(value: number | null, currency: string) {
   return value === null ? "Not set" : `${value} ${currency}`;
 }
 
+function agreementTermsAnchor(candidateId: string) {
+  return `candidate-commercial-${candidateId}`;
+}
+
+function matchingEligibilityMessage(request: RequestSummary) {
+  if (request.status === "matched") {
+    return "Matching complete. A provider has been accepted.";
+  }
+
+  if (request.status === "in_progress") {
+    return "Matching complete. Project is in progress.";
+  }
+
+  if (request.status === "completed") {
+    return "Matching complete. Project is completed.";
+  }
+
+  if (request.status === "cancelled") {
+    return "Project is cancelled.";
+  }
+
+  if (request.status === "new" || request.status === "needs_clarification") {
+    return "Not eligible: review is required before matching.";
+  }
+
+  if (
+    request.status === "reviewed" &&
+    request.integrity_review_status !== "clear"
+  ) {
+    return "Not eligible: integrity review must be clear before matching.";
+  }
+
+  return "Not eligible for matching.";
+}
+
 function effectiveRank(candidate: CandidateSummary) {
   return candidate.student_decision_status === "declined"
     ? null
@@ -98,6 +133,7 @@ export function MatchingSection({
     (provider) => !existingProviderIds.has(provider.id),
   );
   const sortedCandidates = [...candidates].sort(candidateSort);
+  const eligibilityMessage = matchingEligibilityMessage(request);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
@@ -111,9 +147,7 @@ export function MatchingSection({
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          {isEligible
-            ? "Eligible for matching"
-            : "Not eligible: mark reviewed and integrity clear first"}
+          {isEligible ? "Eligible for matching" : eligibilityMessage}
         </div>
       </div>
 
@@ -167,11 +201,13 @@ export function MatchingSection({
               : undefined;
             const currentProviderStatus = provider?.status ?? "unavailable";
             const providerIsApproved = currentProviderStatus === "approved";
+            const isAccepted =
+              candidate.student_decision_status === "accepted";
             const displayedRank = effectiveRank(candidate);
             const canPresent =
               providerIsApproved &&
               candidate.provider_response_status === "interested" &&
-              candidate.student_decision_status !== "accepted" &&
+              !isAccepted &&
               candidate.student_decision_status !== "declined";
             const canDecide =
               providerIsApproved &&
@@ -180,7 +216,7 @@ export function MatchingSection({
               candidate.candidate_rank !== null;
             const canUpdateProviderResponse =
               providerIsApproved &&
-              candidate.student_decision_status !== "accepted" &&
+              !isAccepted &&
               candidate.student_decision_status !== "declined" &&
               candidate.student_decision_status !== "presented" &&
               candidate.candidate_rank === null;
@@ -189,9 +225,21 @@ export function MatchingSection({
               candidate.candidate_rank !== null;
             const providerWarning = providerIsApproved
               ? null
-              : candidate.student_decision_status === "accepted"
+              : isAccepted
                 ? "No longer eligible for matching. Accepted record requires manual review."
                 : "No longer eligible for matching.";
+            const acceptedWithMissingTerms =
+              isAccepted &&
+              (candidate.agreed_price === null ||
+                candidate.agreed_deadline === null);
+            const acceptedWithCompleteTerms =
+              isAccepted &&
+              candidate.agreed_price !== null &&
+              candidate.agreed_deadline !== null;
+            const missingAgreementTerms = [
+              candidate.agreed_price === null ? "agreed price" : null,
+              candidate.agreed_deadline === null ? "agreed deadline" : null,
+            ].filter((value): value is string => Boolean(value));
 
             return (
               <article
@@ -284,6 +332,30 @@ export function MatchingSection({
                     {providerWarning ? (
                       <div className="notice-error mt-4">{providerWarning}</div>
                     ) : null}
+                    {acceptedWithMissingTerms ? (
+                      <div className="notice-info mt-4">
+                        <p className="font-bold">
+                          Provider matched. Complete the agreed price and
+                          deadline before creating the engagement.
+                        </p>
+                        <p className="mt-2">
+                          Missing: {missingAgreementTerms.join(", ")}.
+                        </p>
+                        <a
+                          className="mt-3 inline-flex font-bold underline"
+                          href={`#${agreementTermsAnchor(candidate.id)}`}
+                        >
+                          Complete agreement terms
+                        </a>
+                      </div>
+                    ) : null}
+                    {acceptedWithCompleteTerms ? (
+                      <div className="notice-success mt-4">
+                        Provider matched. Agreement terms are complete:{" "}
+                        {formatPrice(candidate.agreed_price, candidate.currency)}
+                        , due {candidate.agreed_deadline}.
+                      </div>
+                    ) : null}
                     <div className="mt-4 grid gap-3 text-sm">
                       <div>
                         <div className="font-bold text-slate-600">
@@ -317,161 +389,191 @@ export function MatchingSection({
                   </div>
 
                   <div className="grid content-start gap-4">
-                    <form
-                      action={updateCandidateProviderResponse}
-                      className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <input
-                        name="candidate_id"
-                        type="hidden"
-                        value={candidate.id}
-                      />
-                      <input
-                        name="request_id"
-                        type="hidden"
-                        value={request.id}
-                      />
-                      <label className="form-field">
-                        <span className="form-label">Provider response</span>
-                        <select
-                          className="form-input"
-                          defaultValue={candidate.provider_response_status}
-                          disabled={!canUpdateProviderResponse}
-                          name="provider_response_status"
+                    {isAccepted ? (
+                      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h4 className="font-bold text-slate-950">
+                          Completed decision
+                        </h4>
+                        <dl className="mt-4 grid gap-3 text-sm">
+                          <div>
+                            <dt className="font-bold text-slate-600">
+                              Provider response
+                            </dt>
+                            <dd className="mt-1 text-slate-900">
+                              {formatStatus(candidate.provider_response_status)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-bold text-slate-600">Rank</dt>
+                            <dd className="mt-1 text-slate-900">
+                              {displayedRank ?? "Not ranked"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-bold text-slate-600">
+                              Student decision
+                            </dt>
+                            <dd className="mt-1 text-slate-900">Accepted</dd>
+                          </div>
+                        </dl>
+                      </section>
+                    ) : (
+                      <>
+                        <form
+                          action={updateCandidateProviderResponse}
+                          className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
                         >
-                          <option value="pending">Pending</option>
-                          <option value="interested">Interested</option>
-                          <option value="declined">Declined</option>
-                          <option value="no_response">No response</option>
-                          <option value="withdrawn">Withdrawn</option>
-                        </select>
-                      </label>
-                      <label className="form-field">
-                        <span className="form-label">Decline reason</span>
-                        <textarea
-                          className="form-input min-h-20"
-                          defaultValue={candidate.decline_reason ?? ""}
-                          disabled={!canUpdateProviderResponse}
-                          name="decline_reason"
-                        />
-                      </label>
-                      <button
-                        className="button-secondary"
-                        disabled={!canUpdateProviderResponse}
-                        type="submit"
-                      >
-                        Save provider response
-                      </button>
-                    </form>
+                          <input
+                            name="candidate_id"
+                            type="hidden"
+                            value={candidate.id}
+                          />
+                          <input
+                            name="request_id"
+                            type="hidden"
+                            value={request.id}
+                          />
+                          <label className="form-field">
+                            <span className="form-label">Provider response</span>
+                            <select
+                              className="form-input"
+                              defaultValue={candidate.provider_response_status}
+                              disabled={!canUpdateProviderResponse}
+                              name="provider_response_status"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="interested">Interested</option>
+                              <option value="declined">Declined</option>
+                              <option value="no_response">No response</option>
+                              <option value="withdrawn">Withdrawn</option>
+                            </select>
+                          </label>
+                          <label className="form-field">
+                            <span className="form-label">Decline reason</span>
+                            <textarea
+                              className="form-input min-h-20"
+                              defaultValue={candidate.decline_reason ?? ""}
+                              disabled={!canUpdateProviderResponse}
+                              name="decline_reason"
+                            />
+                          </label>
+                          <button
+                            className="button-secondary"
+                            disabled={!canUpdateProviderResponse}
+                            type="submit"
+                          >
+                            Save provider response
+                          </button>
+                        </form>
 
-                    <form
-                      action={presentCandidate}
-                      className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <input
-                        name="candidate_id"
-                        type="hidden"
-                        value={candidate.id}
-                      />
-                      <input
-                        name="request_id"
-                        type="hidden"
-                        value={request.id}
-                      />
-                      <label className="form-field">
-                        <span className="form-label">Shortlist rank</span>
-                        <select
-                          className="form-input"
-                          defaultValue={displayedRank ?? ""}
-                          disabled={!canPresent}
-                          name="candidate_rank"
-                          required
+                        <form
+                          action={presentCandidate}
+                          className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
                         >
-                          <option value="">Choose rank</option>
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                        </select>
-                      </label>
-                      <button
-                        className="button-secondary"
-                        disabled={!canPresent}
-                        type="submit"
-                      >
-                        Present candidate
-                      </button>
-                    </form>
+                          <input
+                            name="candidate_id"
+                            type="hidden"
+                            value={candidate.id}
+                          />
+                          <input
+                            name="request_id"
+                            type="hidden"
+                            value={request.id}
+                          />
+                          <label className="form-field">
+                            <span className="form-label">Shortlist rank</span>
+                            <select
+                              className="form-input"
+                              defaultValue={displayedRank ?? ""}
+                              disabled={!canPresent}
+                              name="candidate_rank"
+                              required
+                            >
+                              <option value="">Choose rank</option>
+                              <option value="1">1</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                            </select>
+                          </label>
+                          <button
+                            className="button-secondary"
+                            disabled={!canPresent}
+                            type="submit"
+                          >
+                            Present candidate
+                          </button>
+                        </form>
 
-                    <form action={unpresentCandidate}>
-                      <input
-                        name="candidate_id"
-                        type="hidden"
-                        value={candidate.id}
-                      />
-                      <input
-                        name="request_id"
-                        type="hidden"
-                        value={request.id}
-                      />
-                      <button
-                        className="button-secondary w-full"
-                        disabled={
-                          !canUnpresent ||
-                          candidate.student_decision_status === "accepted"
-                        }
-                        type="submit"
-                      >
-                        Remove from shortlist
-                      </button>
-                    </form>
+                        <form action={unpresentCandidate}>
+                          <input
+                            name="candidate_id"
+                            type="hidden"
+                            value={candidate.id}
+                          />
+                          <input
+                            name="request_id"
+                            type="hidden"
+                            value={request.id}
+                          />
+                          <button
+                            className="button-secondary w-full"
+                            disabled={!canUnpresent}
+                            type="submit"
+                          >
+                            Remove from shortlist
+                          </button>
+                        </form>
 
-                    <form
-                      action={updateCandidateStudentDecision}
-                      className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <input
-                        name="candidate_id"
-                        type="hidden"
-                        value={candidate.id}
-                      />
-                      <input
-                        name="request_id"
-                        type="hidden"
-                        value={request.id}
-                      />
-                      <label className="form-field">
-                        <span className="form-label">Student decision</span>
-                        <select
-                          className="form-input"
-                          disabled={!canDecide}
-                          name="student_decision_status"
-                          required
+                        <form
+                          action={updateCandidateStudentDecision}
+                          className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
                         >
-                          <option value="">Choose decision</option>
-                          <option value="accepted">Accepted</option>
-                          <option value="declined">Declined</option>
-                        </select>
-                      </label>
-                      <label className="form-field">
-                        <span className="form-label">Decline reason</span>
-                        <textarea
-                          className="form-input min-h-20"
-                          disabled={!canDecide}
-                          name="decline_reason"
-                        />
-                      </label>
-                      <button
-                        className="button-secondary"
-                        disabled={!canDecide}
-                        type="submit"
-                      >
-                        Save student decision
-                      </button>
-                    </form>
+                          <input
+                            name="candidate_id"
+                            type="hidden"
+                            value={candidate.id}
+                          />
+                          <input
+                            name="request_id"
+                            type="hidden"
+                            value={request.id}
+                          />
+                          <label className="form-field">
+                            <span className="form-label">Student decision</span>
+                            <select
+                              className="form-input"
+                              disabled={!canDecide}
+                              name="student_decision_status"
+                              required
+                            >
+                              <option value="">Choose decision</option>
+                              <option value="accepted">Accepted</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          </label>
+                          <label className="form-field">
+                            <span className="form-label">Decline reason</span>
+                            <textarea
+                              className="form-input min-h-20"
+                              disabled={!canDecide}
+                              name="decline_reason"
+                            />
+                          </label>
+                          <button
+                            className="button-secondary"
+                            disabled={!canDecide}
+                            type="submit"
+                          >
+                            Save student decision
+                          </button>
+                        </form>
+                      </>
+                    )}
 
                     <form
                       action={updateCandidateDetails}
                       className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+                      id={agreementTermsAnchor(candidate.id)}
                     >
                       <input
                         name="candidate_id"

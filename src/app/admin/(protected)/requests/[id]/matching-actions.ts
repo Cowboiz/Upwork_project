@@ -104,10 +104,19 @@ function formDataObject(formData: FormData) {
   return Object.fromEntries(formData.entries());
 }
 
-function redirectToRequest(requestId: string, params?: URLSearchParams): never {
-  const suffix = params ? `?${params.toString()}` : "";
+function agreementTermsAnchor(candidateId: string) {
+  return `candidate-commercial-${candidateId}`;
+}
 
-  redirect(`/admin/requests/${requestId}${suffix}`);
+function redirectToRequest(
+  requestId: string,
+  params?: URLSearchParams,
+  hash?: string,
+): never {
+  const suffix = params ? `?${params.toString()}` : "";
+  const fragment = hash ? `#${hash}` : "";
+
+  redirect(`/admin/requests/${requestId}${suffix}${fragment}`);
 }
 
 function redirectWithError(requestId: string, message: string): never {
@@ -625,6 +634,15 @@ export async function updateCandidateStudentDecision(formData: FormData) {
       redirectWithError(
         requestId,
         friendlyAcceptCandidateError(acceptError.message),
+      );
+    }
+
+    if (candidate.agreed_price === null || candidate.agreed_deadline === null) {
+      revalidateRequestPaths(requestId);
+      redirectToRequest(
+        requestId,
+        new URLSearchParams({ saved: "student_accepted_terms_needed" }),
+        agreementTermsAnchor(candidateId),
       );
     }
   } else {
