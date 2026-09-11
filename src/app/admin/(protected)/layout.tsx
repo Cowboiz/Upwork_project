@@ -26,6 +26,9 @@ export default async function ProtectedAdminLayout({
             <Link className="text-blue-700" href="/admin/providers">
               Providers
             </Link>
+            <Link className="text-blue-700" href="/admin/ops">
+              Ops
+            </Link>
           </nav>
         </div>
 
