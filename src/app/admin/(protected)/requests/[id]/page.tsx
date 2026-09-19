@@ -32,6 +32,8 @@ function agreementTermsAnchor(candidateId: string) {
 
 function savedMessage(saved: string) {
   switch (saved) {
+    case "candidate_contacted":
+      return "Candidate marked contacted.";
     case "student_accepted_terms_needed":
       return "Student decision saved. Next: add agreed price and deadline.";
     case "student_decision":

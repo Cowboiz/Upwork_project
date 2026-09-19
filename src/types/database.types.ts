@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       contracts: {
@@ -994,6 +1019,78 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_events: {
+        Row: {
+          actor_user_id: string | null
+          event_name: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          project_engagement_id: string | null
+          project_request_id: string | null
+          provider_application_id: string | null
+          request_candidate_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          event_name: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          project_engagement_id?: string | null
+          project_request_id?: string | null
+          provider_application_id?: string | null
+          request_candidate_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          event_name?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          project_engagement_id?: string | null
+          project_request_id?: string | null
+          provider_application_id?: string | null
+          request_candidate_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_project_request_id_fkey"
+            columns: ["project_request_id"]
+            isOneToOne: false
+            referencedRelation: "project_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_provider_application_id_fkey"
+            columns: ["provider_application_id"]
+            isOneToOne: false
+            referencedRelation: "provider_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_request_candidate_id_fkey"
+            columns: ["request_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "request_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1008,6 +1105,10 @@ export type Database = {
         Returns: string
       }
       is_admin: { Args: never; Returns: boolean }
+      mark_request_candidate_contacted: {
+        Args: { p_candidate_id: string; p_request_id: string }
+        Returns: undefined
+      }
       update_project_engagement_status: {
         Args: {
           p_engagement_id: string
@@ -1144,6 +1245,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

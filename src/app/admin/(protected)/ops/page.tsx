@@ -23,9 +23,9 @@ export default async function AdminOpsPage() {
           Validation dashboard
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-          Read-only Stage 1 operating metrics from the canonical transactional
-          tables. Metrics are labelled by confidence so proxies do not look like
-          exact validation proof.
+          Read-only Stage 1 operating metrics plus Phase 2.1 instrumented SLA
+          metrics. Metrics are labelled by confidence so proxies do not look
+          like exact validation proof.
         </p>
       </div>
 
@@ -116,6 +116,49 @@ export default async function AdminOpsPage() {
                       {confidenceLabel(metric.confidence)}
                     </div>
                     <p className="mt-1 leading-6">{metric.interpretation}</p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <h3 className="text-xl font-bold text-slate-950">
+          Instrumented SLA metrics
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+          Phase 2.1 event-based metrics from workflow history. Pre-Phase-2.1
+          records and records without the required start event are excluded from
+          event cohorts.
+        </p>
+        <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-600">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-3">Metric</th>
+                <th className="border-b border-slate-200 px-4 py-3">Current</th>
+                <th className="border-b border-slate-200 px-4 py-3">Target</th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Coverage / notes
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.instrumentedMetrics.map((metric) => (
+                <tr className="align-top" key={metric.label}>
+                  <td className="border-b border-slate-100 px-4 py-4 font-bold text-slate-950">
+                    {metric.label}
+                  </td>
+                  <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                    {metric.current}
+                  </td>
+                  <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                    {metric.target}
+                  </td>
+                  <td className="border-b border-slate-100 px-4 py-4 leading-6 text-slate-700">
+                    {metric.detail}
                   </td>
                 </tr>
               ))}
