@@ -1,5 +1,6 @@
 import {
   addCandidate,
+  markCandidateContacted,
   presentCandidate,
   unpresentCandidate,
   updateCandidateDetails,
@@ -220,6 +221,9 @@ export function MatchingSection({
               candidate.student_decision_status !== "declined" &&
               candidate.student_decision_status !== "presented" &&
               candidate.candidate_rank === null;
+            const canMarkContacted =
+              providerIsApproved &&
+              candidate.provider_response_status === "pending";
             const canUnpresent =
               candidate.student_decision_status === "presented" &&
               candidate.candidate_rank !== null;
@@ -419,6 +423,28 @@ export function MatchingSection({
                       </section>
                     ) : (
                       <>
+                        {candidate.provider_response_status === "pending" ? (
+                          <form action={markCandidateContacted}>
+                            <input
+                              name="candidate_id"
+                              type="hidden"
+                              value={candidate.id}
+                            />
+                            <input
+                              name="request_id"
+                              type="hidden"
+                              value={request.id}
+                            />
+                            <button
+                              className="button-secondary w-full"
+                              disabled={!canMarkContacted}
+                              type="submit"
+                            >
+                              Mark contacted
+                            </button>
+                          </form>
+                        ) : null}
+
                         <form
                           action={updateCandidateProviderResponse}
                           className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"

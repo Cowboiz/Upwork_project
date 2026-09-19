@@ -173,6 +173,26 @@ function friendlyAcceptCandidateError(message: string) {
   return "We could not accept this candidate.";
 }
 
+function friendlyContactCandidateError(message: string) {
+  if (message.includes("candidate_already_responded")) {
+    return "Only pending candidates can be marked contacted.";
+  }
+
+  if (message.includes("candidate_request_mismatch")) {
+    return "This candidate does not belong to this request.";
+  }
+
+  if (message.includes("candidate_not_found")) {
+    return "We could not find that candidate.";
+  }
+
+  if (message.includes("admin_required")) {
+    return "Admin access is required to mark a candidate contacted.";
+  }
+
+  return "We could not mark this candidate contacted.";
+}
+
 function requestIsMatchEligible(request: {
   status: string;
   integrity_review_status: string;
@@ -355,6 +375,31 @@ export async function addCandidate(formData: FormData) {
 
   revalidateRequestPaths(requestId);
   redirectToRequest(requestId, new URLSearchParams({ saved: "candidate_added" }));
+}
+
+export async function markCandidateContacted(formData: FormData) {
+  const parsed = candidateIdSchema.safeParse(formDataObject(formData));
+
+  if (!parsed.success) {
+    redirectWithError(
+      String(formData.get("request_id") ?? ""),
+      parsed.error.issues[0]?.message ?? "Check the candidate.",
+    );
+  }
+
+  const { request_id: requestId, candidate_id: candidateId } = parsed.data;
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.rpc("mark_request_candidate_contacted", {
+    p_candidate_id: candidateId,
+    p_request_id: requestId,
+  });
+
+  if (error) {
+    redirectWithError(requestId, friendlyContactCandidateError(error.message));
+  }
+
+  revalidateRequestPaths(requestId);
+  redirectToRequest(requestId, new URLSearchParams({ saved: "candidate_contacted" }));
 }
 
 export async function updateCandidateProviderResponse(formData: FormData) {
