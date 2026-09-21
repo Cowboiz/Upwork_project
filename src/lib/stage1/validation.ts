@@ -220,8 +220,8 @@ export const projectRequestSchema = z.object({
   description: requiredText.min(30).max(5000),
   desired_deliverables: optionalText,
   deadline: optionalDate,
-  deadline_flexible: z
-    .union([checkboxBoolean, z.undefined()])
+  deadline_flexible: checkboxBoolean
+    .optional()
     .transform((value) => value === true),
   budget_range: z.enum(budgetRangeValues),
   currency: currencyCode,
