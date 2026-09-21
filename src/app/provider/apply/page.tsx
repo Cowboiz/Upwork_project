@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { contactMethods, providerSkills } from "@/lib/stage1/options";
 import { submitProviderApplication } from "./actions";
@@ -15,6 +16,7 @@ export default async function ProviderApplyPage({
   const params = await searchParams;
   const submitted = params.submitted === "1";
   const error = params.error;
+  const intakeSubmissionId = randomUUID();
 
   return (
     <main className="page-shell py-8">
@@ -51,6 +53,12 @@ export default async function ProviderApplyPage({
           {error ? <div className="notice-error mb-6">{error}</div> : null}
 
           <form action={submitProviderApplication} className="grid gap-5">
+            <input
+              name="intake_submission_id"
+              type="hidden"
+              value={intakeSubmissionId}
+            />
+
             <label className="form-field">
               <span className="form-label">Name or display name</span>
               <input className="form-input" name="applicant_name" required />
