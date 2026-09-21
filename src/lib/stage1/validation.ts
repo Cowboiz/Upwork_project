@@ -166,6 +166,7 @@ const hasReasonablePhoneShape = (value: string) => {
 };
 
 const providerApplicationBaseSchema = z.object({
+  intake_submission_id: z.uuid("Invalid submission token."),
   applicant_name: requiredText
     .min(2, "Enter a name or display name with at least 2 characters.")
     .max(80, "Use 80 characters or fewer for your name or display name."),
@@ -211,26 +212,40 @@ const providerApplicationBaseSchema = z.object({
   policy_confirmed: checkboxBoolean,
 });
 
-export const projectRequestSchema = z.object({
-  requester_name: requiredText.max(120),
-  contact_method: z.enum(contactMethodValues),
-  contact_value: requiredText.max(200),
-  school_or_context: optionalText,
-  category: z.enum(projectCategoryValues),
-  description: requiredText.min(30).max(5000),
-  desired_deliverables: optionalText,
-  deadline: optionalDate,
-  deadline_flexible: checkboxBoolean
-    .optional()
-    .transform((value) => value === true),
-  budget_range: z.enum(budgetRangeValues),
-  currency: currencyCode,
-  asset_links: linksList,
-  source_channel: optionalText,
-  contact_permission_confirmed: checkboxBoolean,
-  age_eligible_confirmed: checkboxBoolean,
-  integrity_attested: checkboxBoolean,
-});
+export const projectRequestSchema = z
+  .object({
+    intake_submission_id: z.uuid("Invalid submission token."),
+    requester_name: requiredText.max(120),
+    contact_method: z.enum(contactMethodValues),
+    contact_value: requiredText.max(200),
+    school_or_context: optionalText,
+    category: z.enum(projectCategoryValues),
+    description: requiredText.min(30).max(5000),
+    desired_deliverables: optionalText,
+    deadline: optionalDate,
+    deadline_flexible: checkboxBoolean
+      .optional()
+      .transform((value) => value === true),
+    budget_range: z.enum(budgetRangeValues),
+    currency: currencyCode,
+    asset_links: linksList,
+    source_channel: optionalText,
+    contact_permission_confirmed: checkboxBoolean,
+    age_eligible_confirmed: checkboxBoolean,
+    integrity_attested: checkboxBoolean,
+  })
+  .superRefine((input, context) => {
+    if (
+      input.contact_method === "email" &&
+      !emailAddress.safeParse(input.contact_value).success
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["contact_value"],
+        message: "Enter a valid email address.",
+      });
+    }
+  });
 
 export const providerApplicationSchema = providerApplicationBaseSchema
   .strip()
