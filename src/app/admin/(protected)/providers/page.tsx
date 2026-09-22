@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
+import { contactMethods } from "@/lib/stage1/options";
 
 const providerStatuses = [
   "new",
@@ -8,6 +9,8 @@ const providerStatuses = [
   "rejected",
   "inactive",
 ] as const;
+
+const sortOptions = ["newest", "oldest"] as const;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -24,10 +27,35 @@ function formatList(values: string[]) {
   return values.length > 0 ? values.join(", ") : "Not provided";
 }
 
+function sanitizeSearchQuery(value: string | undefined) {
+  const normalized = value
+    ?.trim()
+    .slice(0, 100)
+    .replace(/[^\p{L}\p{N} @.+-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function searchPattern(value: string) {
+  return `%${value}%`;
+}
+
+function validOption<T extends readonly string[]>(
+  value: string | undefined,
+  options: T,
+) {
+  return options.includes(value as T[number]) ? (value as T[number]) : undefined;
+}
+
 type AdminProvidersPageProps = {
   searchParams: Promise<{
     error?: string;
+    q?: string;
     status?: string;
+    contact_method?: string;
+    sort?: string;
   }>;
 };
 
@@ -36,24 +64,36 @@ export default async function AdminProvidersPage({
 }: AdminProvidersPageProps) {
   const { supabase } = await requireAdmin();
   const params = await searchParams;
-  const selectedStatus = providerStatuses.includes(
-    params.status as (typeof providerStatuses)[number],
-  )
-    ? params.status
-    : undefined;
+  const sanitizedQ = sanitizeSearchQuery(params.q);
+  const selectedStatus = validOption(params.status, providerStatuses);
+  const selectedContactMethod = validOption(
+    params.contact_method,
+    contactMethods.map((method) => method.value),
+  );
+  const selectedSort = validOption(params.sort, sortOptions) ?? "newest";
 
   let query = supabase
     .from("provider_applications")
     .select(
-      "id, applicant_name, skills, preferred_project_types, availability, rate_expectations, status, created_at",
+      "id, applicant_name, contact_method, contact_value, skills, preferred_project_types, availability, rate_expectations, status, created_at",
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: selectedSort === "oldest" });
 
+  if (sanitizedQ) {
+    const pattern = searchPattern(sanitizedQ);
+    query = query.or(
+      `applicant_name.ilike.${pattern},contact_value.ilike.${pattern}`,
+    );
+  }
   if (selectedStatus) {
     query = query.eq("status", selectedStatus);
   }
+  if (selectedContactMethod) {
+    query = query.eq("contact_method", selectedContactMethod);
+  }
 
   const { data: providers, error } = await query;
+  const providerCount = providers?.length ?? 0;
 
   return (
     <section>
@@ -66,35 +106,72 @@ export default async function AdminProvidersPage({
             Review queue
           </h2>
         </div>
-
-        <nav className="flex flex-wrap gap-2 text-sm font-bold">
-          <Link
-            className={`rounded-lg border px-3 py-2 ${
-              selectedStatus
-                ? "border-slate-200 bg-white text-slate-700"
-                : "border-blue-700 bg-blue-700 text-white"
-            }`}
-            href="/admin/providers"
-          >
-            All
-          </Link>
-          {providerStatuses.map((status) => (
-            <Link
-              className={`rounded-lg border px-3 py-2 ${
-                selectedStatus === status
-                  ? "border-blue-700 bg-blue-700 text-white"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
-              href={`/admin/providers?status=${status}`}
-              key={status}
-            >
-              {formatStatus(status)}
-            </Link>
-          ))}
-        </nav>
       </div>
 
       {params.error ? <div className="notice-error mt-6">{params.error}</div> : null}
+
+      <form
+        className="mt-6 grid gap-4 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[minmax(180px,1.5fr)_repeat(3,minmax(140px,1fr))_auto_auto] md:items-end"
+        method="get"
+      >
+        <label className="form-field">
+          <span className="form-label">Search</span>
+          <input
+            className="form-input"
+            defaultValue={sanitizedQ ?? ""}
+            maxLength={100}
+            name="q"
+            placeholder="Name or contact"
+          />
+        </label>
+
+        <label className="form-field">
+          <span className="form-label">Status</span>
+          <select
+            className="form-input"
+            defaultValue={selectedStatus ?? ""}
+            name="status"
+          >
+            <option value="">All statuses</option>
+            {providerStatuses.map((status) => (
+              <option key={status} value={status}>
+                {formatStatus(status)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span className="form-label">Contact</span>
+          <select
+            className="form-input"
+            defaultValue={selectedContactMethod ?? ""}
+            name="contact_method"
+          >
+            <option value="">All contact</option>
+            {contactMethods.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span className="form-label">Sort</span>
+          <select className="form-input" defaultValue={selectedSort} name="sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </label>
+
+        <button className="button-primary" type="submit">
+          Apply
+        </button>
+        <Link className="button-secondary text-center" href="/admin/providers">
+          Clear
+        </Link>
+      </form>
 
       {error ? (
         <div className="notice-error mt-6">
@@ -102,9 +179,15 @@ export default async function AdminProvidersPage({
         </div>
       ) : null}
 
+      {!error ? (
+        <p className="mt-4 text-sm font-bold text-slate-700">
+          {providerCount} {providerCount === 1 ? "provider" : "providers"} found
+        </p>
+      ) : null}
+
       {!error && providers?.length === 0 ? (
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-slate-700">
-          No provider applications found.
+          No providers match these filters.
         </div>
       ) : null}
 
