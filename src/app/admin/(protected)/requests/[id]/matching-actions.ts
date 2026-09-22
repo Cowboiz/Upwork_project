@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
+import {
+  sendProviderContactedNotification,
+  sendShortlistPresentedNotification,
+} from "@/lib/email/outbox";
 
 type AcceptCandidateRpcClient = {
   rpc(
@@ -18,6 +22,8 @@ type AcceptCandidateRpcClient = {
     } | null;
   }>;
 };
+
+type AdminSupabase = Awaited<ReturnType<typeof requireAdmin>>["supabase"];
 
 const requestIdSchema = z.object({
   request_id: z.uuid("Invalid request id."),
@@ -198,6 +204,129 @@ function requestIsMatchEligible(request: {
   integrity_review_status: string;
 }) {
   return request.status === "reviewed" && request.integrity_review_status === "clear";
+}
+
+async function sendProviderContactedEmailIfEligible(
+  supabase: AdminSupabase,
+  requestId: string,
+  candidateId: string,
+) {
+  try {
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select(
+        "id, project_request_id, provider_application_id, scope_summary, proposed_price, currency",
+      )
+      .eq("id", candidateId)
+      .eq("project_request_id", requestId)
+      .maybeSingle();
+
+    if (candidateError || !candidate?.provider_application_id) {
+      return;
+    }
+
+    const [
+      { data: request, error: requestError },
+      { data: provider, error: providerError },
+    ] = await Promise.all([
+      supabase
+        .from("project_requests")
+        .select("id, category, budget_range, currency, deadline, deadline_flexible")
+        .eq("id", requestId)
+        .maybeSingle(),
+      supabase
+        .from("provider_applications")
+        .select("id, applicant_name, contact_method, contact_value")
+        .eq("id", candidate.provider_application_id)
+        .maybeSingle(),
+    ]);
+
+    if (requestError || providerError || !request || !provider) {
+      return;
+    }
+
+    await sendProviderContactedNotification({
+      budgetRange: request.budget_range,
+      budgetCurrency: request.currency,
+      candidateId: candidate.id,
+      contactMethod: provider.contact_method,
+      contactValue: provider.contact_value,
+      deadline: request.deadline,
+      deadlineFlexible: request.deadline_flexible,
+      projectCategory: request.category,
+      projectRequestId: request.id,
+      proposedCurrency: candidate.currency,
+      proposedPrice: candidate.proposed_price,
+      providerApplicationId: provider.id,
+      providerName: provider.applicant_name,
+      scopeSummary: candidate.scope_summary,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+async function sendShortlistPresentedEmailIfEligible(
+  supabase: AdminSupabase,
+  requestId: string,
+  candidateId: string,
+) {
+  try {
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select(
+        "id, project_request_id, provider_application_id, candidate_rank, scope_summary, proposed_price, currency",
+      )
+      .eq("id", candidateId)
+      .eq("project_request_id", requestId)
+      .maybeSingle();
+
+    if (
+      candidateError ||
+      !candidate?.provider_application_id ||
+      candidate.candidate_rank === null
+    ) {
+      return;
+    }
+
+    const [
+      { data: request, error: requestError },
+      { data: provider, error: providerError },
+    ] = await Promise.all([
+      supabase
+        .from("project_requests")
+        .select("id, contact_method, contact_value")
+        .eq("id", requestId)
+        .maybeSingle(),
+      supabase
+        .from("provider_applications")
+        .select("id, applicant_name, skills, availability, rate_expectations")
+        .eq("id", candidate.provider_application_id)
+        .maybeSingle(),
+    ]);
+
+    if (requestError || providerError || !request || !provider) {
+      return;
+    }
+
+    await sendShortlistPresentedNotification({
+      availability: provider.availability,
+      candidateId: candidate.id,
+      candidateRank: candidate.candidate_rank,
+      contactMethod: request.contact_method,
+      contactValue: request.contact_value,
+      currency: candidate.currency,
+      projectRequestId: request.id,
+      proposedPrice: candidate.proposed_price,
+      providerApplicationId: provider.id,
+      providerName: provider.applicant_name,
+      rateExpectations: provider.rate_expectations,
+      scopeSummary: candidate.scope_summary,
+      skills: provider.skills,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
 }
 
 async function assertRequestCanMatch(requestId: string) {
@@ -398,6 +527,8 @@ export async function markCandidateContacted(formData: FormData) {
     redirectWithError(requestId, friendlyContactCandidateError(error.message));
   }
 
+  await sendProviderContactedEmailIfEligible(supabase, requestId, candidateId);
+
   revalidateRequestPaths(requestId);
   redirectToRequest(requestId, new URLSearchParams({ saved: "candidate_contacted" }));
 }
@@ -547,6 +678,8 @@ export async function presentCandidate(formData: FormData) {
       "We could not present this candidate at that rank.",
     );
   }
+
+  await sendShortlistPresentedEmailIfEligible(supabase, requestId, candidateId);
 
   revalidateRequestPaths(requestId);
   redirectToRequest(requestId, new URLSearchParams({ saved: "presented" }));

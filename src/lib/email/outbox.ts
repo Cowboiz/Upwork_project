@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getAdminNotificationEmail,
   isEmailEnabled,
@@ -12,8 +13,10 @@ import {
 import {
   adminNewProviderApplicationEmail,
   adminNewRequestEmail,
+  providerContactedEmail,
   providerApplicationSubmittedEmail,
   requesterRequestSubmittedEmail,
+  shortlistPresentedEmail,
 } from "./templates";
 
 type Supabase = SupabaseClient<Database>;
@@ -49,6 +52,39 @@ type ProviderApplicationNotificationInput = {
   contactMethod: string;
   contactValue: string;
   id: string;
+};
+
+type ProviderContactedNotificationInput = {
+  budgetRange: string;
+  budgetCurrency: string;
+  candidateId: string;
+  contactMethod: string;
+  contactValue: string;
+  deadline: string | null;
+  deadlineFlexible: boolean;
+  projectCategory: string;
+  projectRequestId: string;
+  proposedCurrency: string;
+  proposedPrice: number | null;
+  providerApplicationId: string;
+  providerName: string;
+  scopeSummary: string | null;
+};
+
+type ShortlistPresentedNotificationInput = {
+  availability: string;
+  candidateId: string;
+  candidateRank: number;
+  contactMethod: string;
+  contactValue: string;
+  currency: string;
+  projectRequestId: string;
+  proposedPrice: number | null;
+  providerApplicationId: string;
+  providerName: string;
+  rateExpectations: string;
+  scopeSummary: string | null;
+  skills: string[];
 };
 
 function sanitizeEmailError(error: unknown) {
@@ -251,5 +287,74 @@ export async function sendProviderApplicationSubmittedNotifications(
     }
   } catch {
     // Email notification failures must not block successful intake.
+  }
+}
+
+export async function sendProviderContactedNotification(
+  input: ProviderContactedNotificationInput,
+) {
+  try {
+    if (input.contactMethod !== "email") {
+      return;
+    }
+
+    await enqueueAndSendEmail(createSupabaseAdminClient(), {
+      ...providerContactedEmail({
+        budgetRange: input.budgetRange,
+        budgetCurrency: input.budgetCurrency,
+        deadline: input.deadline,
+        deadlineFlexible: input.deadlineFlexible,
+        projectCategory: input.projectCategory,
+        proposedCurrency: input.proposedCurrency,
+        proposedPrice: input.proposedPrice,
+        providerName: input.providerName,
+        scopeSummary: input.scopeSummary,
+      }),
+      dedupeKey: `provider_contacted:provider:${input.candidateId}`,
+      recipientRole: "provider",
+      related: {
+        related_project_request_id: input.projectRequestId,
+        related_provider_application_id: input.providerApplicationId,
+        related_request_candidate_id: input.candidateId,
+      },
+      templateKey: "provider_contacted_provider",
+      to: input.contactValue,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+export async function sendShortlistPresentedNotification(
+  input: ShortlistPresentedNotificationInput,
+) {
+  try {
+    if (input.contactMethod !== "email") {
+      return;
+    }
+
+    await enqueueAndSendEmail(createSupabaseAdminClient(), {
+      ...shortlistPresentedEmail({
+        availability: input.availability,
+        candidateRank: input.candidateRank,
+        currency: input.currency,
+        proposedPrice: input.proposedPrice,
+        providerName: input.providerName,
+        rateExpectations: input.rateExpectations,
+        scopeSummary: input.scopeSummary,
+        skills: input.skills,
+      }),
+      dedupeKey: `shortlist_presented:student:${input.candidateId}`,
+      recipientRole: "student",
+      related: {
+        related_project_request_id: input.projectRequestId,
+        related_provider_application_id: input.providerApplicationId,
+        related_request_candidate_id: input.candidateId,
+      },
+      templateKey: "shortlist_presented_student",
+      to: input.contactValue,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
   }
 }
