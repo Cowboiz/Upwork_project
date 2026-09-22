@@ -169,6 +169,95 @@ export type Database = {
           },
         ]
       }
+      email_outbox: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_error: string | null
+          provider_message_id: string | null
+          provider_recipient_email: string
+          recipient_email: string
+          recipient_role: string
+          related_project_engagement_id: string | null
+          related_project_request_id: string | null
+          related_provider_application_id: string | null
+          related_request_candidate_id: string | null
+          sent_at: string | null
+          status: string
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_error?: string | null
+          provider_message_id?: string | null
+          provider_recipient_email: string
+          recipient_email: string
+          recipient_role: string
+          related_project_engagement_id?: string | null
+          related_project_request_id?: string | null
+          related_provider_application_id?: string | null
+          related_request_candidate_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_error?: string | null
+          provider_message_id?: string | null
+          provider_recipient_email?: string
+          recipient_email?: string
+          recipient_role?: string
+          related_project_engagement_id?: string | null
+          related_project_request_id?: string | null
+          related_provider_application_id?: string | null
+          related_request_candidate_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_related_project_engagement_id_fkey"
+            columns: ["related_project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_related_project_request_id_fkey"
+            columns: ["related_project_request_id"]
+            isOneToOne: false
+            referencedRelation: "project_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_related_provider_application_id_fkey"
+            columns: ["related_provider_application_id"]
+            isOneToOne: false
+            referencedRelation: "provider_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_related_request_candidate_id_fkey"
+            columns: ["related_request_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "request_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -533,6 +622,7 @@ export type Database = {
           integrity_attested: boolean
           integrity_review_status: string
           internal_notes: string | null
+          intake_submission_id: string | null
           linked_student_profile_id: string | null
           rejection_reason: string | null
           requester_name: string
@@ -562,6 +652,7 @@ export type Database = {
           integrity_attested?: boolean
           integrity_review_status?: string
           internal_notes?: string | null
+          intake_submission_id?: string | null
           linked_student_profile_id?: string | null
           rejection_reason?: string | null
           requester_name: string
@@ -591,6 +682,7 @@ export type Database = {
           integrity_attested?: boolean
           integrity_review_status?: string
           internal_notes?: string | null
+          intake_submission_id?: string | null
           linked_student_profile_id?: string | null
           rejection_reason?: string | null
           requester_name?: string
@@ -768,6 +860,7 @@ export type Database = {
           created_at: string
           id: string
           internal_notes: string | null
+          intake_submission_id: string | null
           linked_provider_profile_id: string | null
           policy_accepted_at: string | null
           portfolio_urls: string[]
@@ -790,6 +883,7 @@ export type Database = {
           created_at?: string
           id?: string
           internal_notes?: string | null
+          intake_submission_id?: string | null
           linked_provider_profile_id?: string | null
           policy_accepted_at?: string | null
           portfolio_urls?: string[]
@@ -812,6 +906,7 @@ export type Database = {
           created_at?: string
           id?: string
           internal_notes?: string | null
+          intake_submission_id?: string | null
           linked_provider_profile_id?: string | null
           policy_accepted_at?: string | null
           portfolio_urls?: string[]

@@ -1,8 +1,37 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { sendProjectRequestSubmittedNotifications } from "@/lib/email/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formDataToObject, projectRequestSchema } from "@/lib/stage1/validation";
+
+type ProjectRequestNotificationRow = {
+  contact_method: string;
+  contact_value: string;
+  id: string;
+  requester_name: string;
+};
+
+function isUniqueViolation(error: { code?: string } | null) {
+  return error?.code === "23505";
+}
+
+async function getExistingRequestBySubmissionId(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  intakeSubmissionId: string,
+) {
+  const { data, error } = await supabase
+    .from("project_requests")
+    .select("id, requester_name, contact_method, contact_value")
+    .eq("intake_submission_id", intakeSubmissionId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data satisfies ProjectRequestNotificationRow;
+}
 
 export async function submitProjectRequest(formData: FormData) {
   const parsed = projectRequestSchema.safeParse(formDataToObject(formData));
@@ -15,10 +44,12 @@ export async function submitProjectRequest(formData: FormData) {
   }
 
   const input = parsed.data;
+  const supabase = createSupabaseAdminClient();
 
-  const { error } = await createSupabaseAdminClient()
+  const { data: request, error } = await supabase
     .from("project_requests")
     .insert({
+      intake_submission_id: input.intake_submission_id,
       requester_name: input.requester_name,
       contact_method: input.contact_method,
       contact_value: input.contact_value,
@@ -35,13 +66,40 @@ export async function submitProjectRequest(formData: FormData) {
       contact_permission_confirmed: input.contact_permission_confirmed,
       age_eligible_confirmed: input.age_eligible_confirmed,
       integrity_attested: input.integrity_attested,
-    });
+    })
+    .select("id, requester_name, contact_method, contact_value")
+    .single();
 
   if (error) {
+    if (isUniqueViolation(error)) {
+      const existingRequest = await getExistingRequestBySubmissionId(
+        supabase,
+        input.intake_submission_id,
+      );
+
+      if (existingRequest) {
+        await sendProjectRequestSubmittedNotifications(supabase, {
+          contactMethod: existingRequest.contact_method,
+          contactValue: existingRequest.contact_value,
+          id: existingRequest.id,
+          requesterName: existingRequest.requester_name,
+        });
+
+        redirect("/request?submitted=1");
+      }
+    }
+
     redirect(
       `/request?error=${encodeURIComponent("We could not submit your request. Please try again.")}`,
     );
   }
+
+  await sendProjectRequestSubmittedNotifications(supabase, {
+    contactMethod: request.contact_method,
+    contactValue: request.contact_value,
+    id: request.id,
+    requesterName: request.requester_name,
+  });
 
   redirect("/request?submitted=1");
 }
