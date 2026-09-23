@@ -45,6 +45,26 @@ type WorkflowEvent = Pick<
   | "project_engagement_id"
 >;
 
+export type OpsEmailFailure = Pick<
+  Database["public"]["Tables"]["email_outbox"]["Row"],
+  | "attempt_count"
+  | "created_at"
+  | "id"
+  | "last_error"
+  | "recipient_role"
+  | "status"
+  | "template_key"
+  | "updated_at"
+>;
+
+export type OpsEmailDelivery = {
+  failedCount: number;
+  oldestUnsentAt: string | null;
+  pendingCount: number;
+  recentFailed: OpsEmailFailure[];
+  sentCount: number;
+};
+
 type EventScope = "request" | "candidate" | "engagement";
 type EntityEventMaps = Map<EventScope, Map<string, Map<string, number>>>;
 
@@ -92,6 +112,7 @@ export type OpsFunnelStep = {
 };
 
 export type OpsData = {
+  emailDelivery: OpsEmailDelivery;
   queues: OpsQueue[];
   metrics: OpsMetric[];
   instrumentedMetrics: OpsInstrumentedMetric[];
@@ -605,6 +626,11 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
     { data: candidates, error: candidatesError },
     { data: engagements, error: engagementsError },
     { data: workflowEvents, error: workflowEventsError },
+    { count: sentEmailCount, error: sentEmailCountError },
+    { count: failedEmailCount, error: failedEmailCountError },
+    { count: pendingEmailCount, error: pendingEmailCountError },
+    { data: oldestUnsentEmails, error: oldestUnsentEmailError },
+    { data: recentFailedEmails, error: recentFailedEmailsError },
   ] = await Promise.all([
     supabase
       .from("project_requests")
@@ -626,6 +652,32 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
         "event_name, occurred_at, project_request_id, request_candidate_id, provider_application_id, project_engagement_id",
       )
       .order("occurred_at", { ascending: true }),
+    supabase
+      .from("email_outbox")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "sent"),
+    supabase
+      .from("email_outbox")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "failed"),
+    supabase
+      .from("email_outbox")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+    supabase
+      .from("email_outbox")
+      .select("created_at")
+      .in("status", ["failed", "pending"])
+      .order("created_at", { ascending: true })
+      .limit(1),
+    supabase
+      .from("email_outbox")
+      .select(
+        "id, template_key, recipient_role, status, attempt_count, last_error, created_at, updated_at",
+      )
+      .eq("status", "failed")
+      .order("updated_at", { ascending: false })
+      .limit(10),
   ]);
 
   if (
@@ -633,7 +685,12 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
     providersError ||
     candidatesError ||
     engagementsError ||
-    workflowEventsError
+    workflowEventsError ||
+    sentEmailCountError ||
+    failedEmailCountError ||
+    pendingEmailCountError ||
+    oldestUnsentEmailError ||
+    recentFailedEmailsError
   ) {
     throw new Error("Unable to load operations metrics.");
   }
@@ -963,6 +1020,13 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
 
   return {
     queues,
+    emailDelivery: {
+      failedCount: failedEmailCount ?? 0,
+      oldestUnsentAt: oldestUnsentEmails?.[0]?.created_at ?? null,
+      pendingCount: pendingEmailCount ?? 0,
+      recentFailed: recentFailedEmails satisfies OpsEmailFailure[],
+      sentCount: sentEmailCount ?? 0,
+    },
     metrics,
     instrumentedMetrics: buildInstrumentedMetrics({
       candidates: safeCandidates,

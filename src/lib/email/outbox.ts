@@ -2,8 +2,14 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import { buildProviderResponseUrl } from "@/lib/provider-response/tokens";
-import { buildStudentDecisionUrl } from "@/lib/student-decision/tokens";
+import {
+  buildExistingProviderResponseUrl,
+  buildProviderResponseUrl,
+} from "@/lib/provider-response/tokens";
+import {
+  buildExistingStudentDecisionUrl,
+  buildStudentDecisionUrl,
+} from "@/lib/student-decision/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getAdminNotificationEmail,
@@ -26,7 +32,33 @@ type EmailOutboxRow = Pick<
   Database["public"]["Tables"]["email_outbox"]["Row"],
   "attempt_count" | "id" | "provider_recipient_email" | "status"
 >;
+type RetryEmailOutboxRow = Pick<
+  Database["public"]["Tables"]["email_outbox"]["Row"],
+  | "attempt_count"
+  | "dedupe_key"
+  | "id"
+  | "provider_recipient_email"
+  | "recipient_role"
+  | "related_project_request_id"
+  | "related_provider_application_id"
+  | "related_request_candidate_id"
+  | "status"
+  | "template_key"
+>;
 type RecipientRole = "admin" | "provider" | "student";
+
+export type RetryFailedEmailResult = {
+  message: string;
+  status:
+    | "already_sent"
+    | "disabled"
+    | "failed"
+    | "finalization_error"
+    | "in_progress"
+    | "not_failed"
+    | "not_found"
+    | "sent";
+};
 
 type RelatedRecords = {
   related_project_request_id?: string;
@@ -91,6 +123,10 @@ type ShortlistPresentedNotificationInput = {
 
 function sanitizeEmailError(error: unknown) {
   if (error instanceof Error && error.message.startsWith("Missing required")) {
+    return error.message.slice(0, 300);
+  }
+
+  if (error instanceof Error && error.message.startsWith("Email retry")) {
     return error.message.slice(0, 300);
   }
 
@@ -187,6 +223,445 @@ async function markFailed(supabase: Supabase, rowId: string, error: unknown) {
     })
     .eq("id", rowId)
     .neq("status", "sent");
+}
+
+async function loadRetryOutboxRow(supabase: Supabase, outboxId: string) {
+  const { data, error } = await supabase
+    .from("email_outbox")
+    .select(
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+    )
+    .eq("id", outboxId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data satisfies RetryEmailOutboxRow | null;
+}
+
+async function claimFailedRetry(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  const { data, error } = await supabase
+    .from("email_outbox")
+    .update({
+      attempt_count: row.attempt_count + 1,
+      last_error: null,
+      status: "pending",
+    })
+    .eq("id", row.id)
+    .eq("status", "failed")
+    .eq("attempt_count", row.attempt_count)
+    .select(
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data satisfies RetryEmailOutboxRow | null;
+}
+
+async function markRetrySent(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+  providerMessageId: string,
+) {
+  const { data, error } = await supabase
+    .from("email_outbox")
+    .update({
+      last_error: null,
+      provider_message_id: providerMessageId,
+      sent_at: new Date().toISOString(),
+      status: "sent",
+    })
+    .eq("id", row.id)
+    .eq("status", "pending")
+    .eq("attempt_count", row.attempt_count)
+    .select(
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data satisfies RetryEmailOutboxRow | null;
+}
+
+async function markRetryFailed(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+  error: unknown,
+) {
+  const { data, error: updateError } = await supabase
+    .from("email_outbox")
+    .update({
+      last_error: sanitizeEmailError(error),
+      status: "failed",
+    })
+    .eq("id", row.id)
+    .eq("status", "pending")
+    .eq("attempt_count", row.attempt_count)
+    .select(
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+    )
+    .maybeSingle();
+
+  if (updateError) {
+    return null;
+  }
+
+  return data satisfies RetryEmailOutboxRow | null;
+}
+
+function retryFailure(message: string): never {
+  throw new Error(`Email retry failed: ${message}`);
+}
+
+async function reconstructProjectRequestEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_project_request_id) {
+    retryFailure("missing related request.");
+  }
+
+  const { data: request, error } = await supabase
+    .from("project_requests")
+    .select("id, requester_name")
+    .eq("id", row.related_project_request_id)
+    .maybeSingle();
+
+  if (error || !request) {
+    retryFailure("request data unavailable.");
+  }
+
+  return requesterRequestSubmittedEmail({
+    requesterName: request.requester_name,
+  });
+}
+
+async function reconstructProviderApplicationEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_provider_application_id) {
+    retryFailure("missing related provider application.");
+  }
+
+  const { data: provider, error } = await supabase
+    .from("provider_applications")
+    .select("id, applicant_name")
+    .eq("id", row.related_provider_application_id)
+    .maybeSingle();
+
+  if (error || !provider) {
+    retryFailure("provider application data unavailable.");
+  }
+
+  return providerApplicationSubmittedEmail({
+    applicantName: provider.applicant_name,
+  });
+}
+
+async function reconstructProviderContactedEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (
+    !row.related_project_request_id ||
+    !row.related_provider_application_id ||
+    !row.related_request_candidate_id
+  ) {
+    retryFailure("missing related provider contact records.");
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+    { data: candidate, error: candidateError },
+  ] = await Promise.all([
+    supabase
+      .from("project_requests")
+      .select("id, category, budget_range, currency, deadline, deadline_flexible")
+      .eq("id", row.related_project_request_id)
+      .maybeSingle(),
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name")
+      .eq("id", row.related_provider_application_id)
+      .maybeSingle(),
+    supabase
+      .from("request_candidates")
+      .select("id, scope_summary, proposed_price, currency")
+      .eq("id", row.related_request_candidate_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || candidateError) {
+    retryFailure("provider contact data unavailable.");
+  }
+
+  if (!request || !provider || !candidate) {
+    retryFailure("provider contact data unavailable.");
+  }
+
+  const responseUrl = await buildExistingProviderResponseUrl(
+    supabase,
+    candidate.id,
+  );
+
+  if (!responseUrl) {
+    retryFailure("Response link is no longer valid for retry.");
+  }
+
+  return providerContactedEmail({
+    budgetRange: request.budget_range,
+    budgetCurrency: request.currency,
+    deadline: request.deadline,
+    deadlineFlexible: request.deadline_flexible,
+    projectCategory: request.category,
+    proposedCurrency: candidate.currency,
+    proposedPrice: candidate.proposed_price,
+    providerName: provider.applicant_name,
+    responseUrl,
+    scopeSummary: candidate.scope_summary,
+  });
+}
+
+async function reconstructShortlistPresentedEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (
+    !row.related_project_request_id ||
+    !row.related_provider_application_id ||
+    !row.related_request_candidate_id
+  ) {
+    retryFailure("missing related shortlist records.");
+  }
+
+  const [
+    { data: provider, error: providerError },
+    { data: candidate, error: candidateError },
+  ] = await Promise.all([
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name, skills, availability, rate_expectations")
+      .eq("id", row.related_provider_application_id)
+      .maybeSingle(),
+    supabase
+      .from("request_candidates")
+      .select("id, candidate_rank, scope_summary, proposed_price, currency")
+      .eq("id", row.related_request_candidate_id)
+      .maybeSingle(),
+  ]);
+
+  if (providerError || candidateError) {
+    retryFailure("shortlist data unavailable.");
+  }
+
+  if (!provider || !candidate || candidate.candidate_rank === null) {
+    retryFailure("shortlist data unavailable.");
+  }
+
+  const decisionUrl = await buildExistingStudentDecisionUrl(
+    supabase,
+    candidate.id,
+  );
+
+  if (!decisionUrl) {
+    retryFailure("Response link is no longer valid for retry.");
+  }
+
+  return shortlistPresentedEmail({
+    availability: provider.availability,
+    candidateRank: candidate.candidate_rank,
+    currency: candidate.currency,
+    decisionUrl,
+    proposedPrice: candidate.proposed_price,
+    providerName: provider.applicant_name,
+    rateExpectations: provider.rate_expectations,
+    scopeSummary: candidate.scope_summary,
+    skills: provider.skills,
+  });
+}
+
+async function reconstructRetryEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  switch (row.template_key) {
+    case "request_submitted_student_confirmation":
+      return reconstructProjectRequestEmail(supabase, row);
+    case "request_submitted_admin_alert":
+      return adminNewRequestEmail();
+    case "provider_application_submitted_provider_confirmation":
+      return reconstructProviderApplicationEmail(supabase, row);
+    case "provider_application_submitted_admin_alert":
+      return adminNewProviderApplicationEmail();
+    case "provider_contacted_provider":
+      return reconstructProviderContactedEmail(supabase, row);
+    case "shortlist_presented_student":
+      return reconstructShortlistPresentedEmail(supabase, row);
+    default:
+      retryFailure("unsupported template.");
+  }
+}
+
+function retryResultForCurrentState(
+  row: RetryEmailOutboxRow | null,
+): RetryFailedEmailResult {
+  if (!row) {
+    return {
+      message: "Email outbox row was not found.",
+      status: "not_found",
+    };
+  }
+
+  if (row.status === "sent") {
+    return {
+      message: "Email has already been sent.",
+      status: "already_sent",
+    };
+  }
+
+  if (row.status === "pending") {
+    return {
+      message: "Email retry is already in progress.",
+      status: "in_progress",
+    };
+  }
+
+  return {
+    message: "Email is not currently eligible for retry.",
+    status: "not_failed",
+  };
+}
+
+async function retryFailedResultAfterFinalizationMiss(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+): Promise<RetryFailedEmailResult> {
+  const currentRow = await loadRetryOutboxRow(supabase, row.id);
+
+  if (currentRow?.status === "sent") {
+    return {
+      message: "Email has already been sent.",
+      status: "sent",
+    };
+  }
+
+  return {
+    message: "Email retry state could not be finalized. Check the outbox row before retrying.",
+    status: "finalization_error",
+  };
+}
+
+async function finalizeRetryFailure(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+  error: unknown,
+): Promise<RetryFailedEmailResult> {
+  const failedRow = await markRetryFailed(supabase, row, error);
+
+  if (failedRow) {
+    return {
+      message: "Email retry failed. Check the sanitized error in the outbox row.",
+      status: "failed",
+    };
+  }
+
+  return retryFailedResultAfterFinalizationMiss(supabase, row);
+}
+
+export async function retryFailedEmailOutboxRow(
+  outboxId: string,
+): Promise<RetryFailedEmailResult> {
+  const supabase = createSupabaseAdminClient();
+  const row = await loadRetryOutboxRow(supabase, outboxId);
+
+  if (!row) {
+    return retryResultForCurrentState(row);
+  }
+
+  if (row.status !== "failed") {
+    return retryResultForCurrentState(row);
+  }
+
+  if (!isEmailEnabled()) {
+    return {
+      message: "Email delivery is disabled. Enable email before retrying.",
+      status: "disabled",
+    };
+  }
+
+  const claimedRow = await claimFailedRetry(supabase, row);
+
+  if (!claimedRow) {
+    const currentRow = await loadRetryOutboxRow(supabase, row.id);
+
+    return retryResultForCurrentState(currentRow);
+  }
+
+  try {
+    const message = await reconstructRetryEmail(supabase, claimedRow);
+    const result = await sendEmail({
+      ...message,
+      idempotencyKey: claimedRow.dedupe_key,
+      to: claimedRow.provider_recipient_email,
+    });
+
+    if (result.skipped) {
+      return finalizeRetryFailure(
+        supabase,
+        claimedRow,
+        new Error("Email retry failed: email delivery is disabled."),
+      );
+    }
+
+    const sentRow = await markRetrySent(
+      supabase,
+      claimedRow,
+      result.providerMessageId,
+    );
+
+    if (!sentRow) {
+      const recoveryResult = await finalizeRetryFailure(
+        supabase,
+        claimedRow,
+        new Error(
+          "Email retry failed: Email was submitted but delivery state could not be finalized.",
+        ),
+      );
+
+      if (
+        recoveryResult.status === "failed" ||
+        recoveryResult.status === "sent"
+      ) {
+        return recoveryResult;
+      }
+
+      return {
+        message: "Email was submitted but delivery state could not be finalized. Check provider and outbox state before retrying.",
+        status: "finalization_error",
+      };
+    }
+
+    return {
+      message: "Email retry sent.",
+      status: "sent",
+    };
+  } catch (error) {
+    return finalizeRetryFailure(supabase, claimedRow, error);
+  }
 }
 
 async function enqueueAndSendEmail(

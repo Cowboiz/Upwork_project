@@ -159,6 +159,23 @@ export async function buildStudentDecisionUrl(
   return url.toString();
 }
 
+export async function buildExistingStudentDecisionUrl(
+  supabase: Supabase,
+  requestCandidateId: string,
+) {
+  const tokenRow = await loadTokenRowByCandidate(supabase, requestCandidateId);
+
+  if (!tokenRow || new Date(tokenRow.expires_at).getTime() <= Date.now()) {
+    return null;
+  }
+
+  const url = new URL("/request/status", getAppBaseUrl());
+
+  url.searchParams.set("token", buildStudentDecisionBearerToken(tokenRow));
+
+  return url.toString();
+}
+
 export async function verifyStudentDecisionBearerToken(
   token: string | undefined,
 ) {

@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getOpsDashboardData } from "@/lib/admin/ops";
+import { retryFailedEmail } from "./actions";
+
+type AdminOpsPageProps = {
+  searchParams: Promise<{
+    email_retry?: string;
+    email_retry_message?: string;
+  }>;
+};
 
 function confidenceLabel(value: string) {
   return value
@@ -9,9 +17,24 @@ function confidenceLabel(value: string) {
     .join(" ");
 }
 
-export default async function AdminOpsPage() {
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "None";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+export default async function AdminOpsPage({
+  searchParams,
+}: AdminOpsPageProps) {
   const { supabase } = await requireAdmin();
+  const params = await searchParams;
   const data = await getOpsDashboardData(supabase);
+  const retryNotice = params.email_retry_message;
 
   return (
     <section className="grid gap-6">
@@ -33,6 +56,16 @@ export default async function AdminOpsPage() {
         Current metrics may include development/test records and should not yet
         be treated as pilot validation results.
       </section>
+
+      {retryNotice ? (
+        <section
+          className={
+            params.email_retry === "sent" ? "notice-success" : "notice-info"
+          }
+        >
+          {retryNotice}
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -80,6 +113,115 @@ export default async function AdminOpsPage() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <div>
+          <h3 className="text-xl font-bold text-slate-950">
+            Email delivery health
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            Operational delivery state from the private email outbox. Retry is
+            manual and uses the existing outbox row.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="text-3xl font-bold text-slate-950">
+              {data.emailDelivery.sentCount}
+            </div>
+            <div className="mt-2 font-bold text-slate-900">Sent</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="text-3xl font-bold text-slate-950">
+              {data.emailDelivery.failedCount}
+            </div>
+            <div className="mt-2 font-bold text-slate-900">Failed</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="text-3xl font-bold text-slate-950">
+              {data.emailDelivery.pendingCount}
+            </div>
+            <div className="mt-2 font-bold text-slate-900">Pending</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="text-lg font-bold text-slate-950">
+              {formatDateTime(data.emailDelivery.oldestUnsentAt)}
+            </div>
+            <div className="mt-2 font-bold text-slate-900">Oldest unsent</div>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-600">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Template
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Recipient role
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Attempts
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Last error
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Updated
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.emailDelivery.recentFailed.length > 0 ? (
+                data.emailDelivery.recentFailed.map((email) => (
+                  <tr className="align-top" key={email.id}>
+                    <td className="border-b border-slate-100 px-4 py-4 font-bold text-slate-950">
+                      {email.template_key}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                      {email.recipient_role}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                      {email.attempt_count}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-700">
+                      {email.last_error ?? "Not provided"}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-700">
+                      <div>{formatDateTime(email.updated_at)}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Created {formatDateTime(email.created_at)}
+                      </div>
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4">
+                      <form action={retryFailedEmail}>
+                        <input name="outbox_id" type="hidden" value={email.id} />
+                        <button className="button-secondary" type="submit">
+                          Retry
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    className="px-4 py-6 text-center text-slate-600"
+                    colSpan={6}
+                  >
+                    No failed email rows.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
