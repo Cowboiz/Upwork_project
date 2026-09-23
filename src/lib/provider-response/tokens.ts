@@ -164,6 +164,23 @@ export async function buildProviderResponseUrl(
   return url.toString();
 }
 
+export async function buildExistingProviderResponseUrl(
+  supabase: Supabase,
+  requestCandidateId: string,
+) {
+  const tokenRow = await loadTokenRowByCandidate(supabase, requestCandidateId);
+
+  if (!tokenRow || new Date(tokenRow.expires_at).getTime() <= Date.now()) {
+    return null;
+  }
+
+  const url = new URL("/provider/respond", getAppBaseUrl());
+
+  url.searchParams.set("token", buildProviderResponseBearerToken(tokenRow));
+
+  return url.toString();
+}
+
 export async function verifyProviderResponseBearerToken(
   token: string | undefined,
 ) {
