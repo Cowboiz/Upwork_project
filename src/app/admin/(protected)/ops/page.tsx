@@ -28,6 +28,10 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatAgeHours(value: number) {
+  return `${value.toFixed(value < 10 ? 1 : 0)}h`;
+}
+
 export default async function AdminOpsPage({
   searchParams,
 }: AdminOpsPageProps) {
@@ -114,6 +118,68 @@ export default async function AdminOpsPage({
             );
           })}
         </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <div>
+          <h3 className="text-xl font-bold text-slate-950">Aging workflow</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            Read-only prioritization signals from current workflow state and
+            instrumentation history. Buckets are internal operating hints, not
+            customer-facing service commitments.
+          </p>
+        </div>
+
+        {data.agingWorkflow.items.length > 0 ? (
+          <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-600">
+                <tr>
+                  <th className="border-b border-slate-200 px-4 py-3">Type</th>
+                  <th className="border-b border-slate-200 px-4 py-3">Item</th>
+                  <th className="border-b border-slate-200 px-4 py-3">Age</th>
+                  <th className="border-b border-slate-200 px-4 py-3">
+                    Started
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-3">
+                    Open
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.agingWorkflow.items.map((item) => (
+                  <tr className="align-top" key={`${item.itemType}-${item.id}`}>
+                    <td className="border-b border-slate-100 px-4 py-4 font-bold text-slate-950">
+                      {item.itemType}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                      {item.title}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-900">
+                      <span className="font-bold">
+                        {formatAgeHours(item.ageHours)}
+                      </span>
+                      <span className="mx-2 text-slate-400">.</span>
+                      <span>{item.ageBucket}</span>
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4 text-slate-700">
+                      {formatDateTime(item.startedAt)}
+                    </td>
+                    <td className="border-b border-slate-100 px-4 py-4">
+                      <Link className="font-bold text-blue-700" href={item.href}>
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="notice-info mt-5">
+            No aging workflow items currently need review.
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
