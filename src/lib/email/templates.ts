@@ -26,6 +26,7 @@ type ProviderContactedTemplateInput = {
 type ShortlistPresentedTemplateInput = {
   availability: string;
   candidateRank: number;
+  decisionUrl: string;
   proposedPrice: number | null;
   providerName: string;
   rateExpectations: string;
@@ -110,6 +111,7 @@ export function shortlistPresentedEmail({
   availability,
   candidateRank,
   currency,
+  decisionUrl,
   proposedPrice,
   providerName,
   rateExpectations,
@@ -129,7 +131,8 @@ export function shortlistPresentedEmail({
       `Proposed price: ${formatPrice(proposedPrice, currency)}`,
       scopeSummary ? `Scope summary: ${scopeSummary}` : null,
       "",
-      "ProjectMatch will coordinate next steps if this provider is a fit.",
+      "Review this match and respond:",
+      decisionUrl,
       "",
       "Thanks,",
       "ProjectMatch",

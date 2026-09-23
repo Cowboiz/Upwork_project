@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       contracts: {
@@ -619,10 +594,10 @@ export type Database = {
           description: string
           desired_deliverables: string | null
           id: string
+          intake_submission_id: string | null
           integrity_attested: boolean
           integrity_review_status: string
           internal_notes: string | null
-          intake_submission_id: string | null
           linked_student_profile_id: string | null
           rejection_reason: string | null
           requester_name: string
@@ -649,10 +624,10 @@ export type Database = {
           description: string
           desired_deliverables?: string | null
           id?: string
+          intake_submission_id?: string | null
           integrity_attested?: boolean
           integrity_review_status?: string
           internal_notes?: string | null
-          intake_submission_id?: string | null
           linked_student_profile_id?: string | null
           rejection_reason?: string | null
           requester_name: string
@@ -679,10 +654,10 @@ export type Database = {
           description?: string
           desired_deliverables?: string | null
           id?: string
+          intake_submission_id?: string | null
           integrity_attested?: boolean
           integrity_review_status?: string
           internal_notes?: string | null
-          intake_submission_id?: string | null
           linked_student_profile_id?: string | null
           rejection_reason?: string | null
           requester_name?: string
@@ -859,8 +834,8 @@ export type Database = {
           contact_value: string
           created_at: string
           id: string
-          internal_notes: string | null
           intake_submission_id: string | null
+          internal_notes: string | null
           linked_provider_profile_id: string | null
           policy_accepted_at: string | null
           portfolio_urls: string[]
@@ -882,8 +857,8 @@ export type Database = {
           contact_value: string
           created_at?: string
           id?: string
-          internal_notes?: string | null
           intake_submission_id?: string | null
+          internal_notes?: string | null
           linked_provider_profile_id?: string | null
           policy_accepted_at?: string | null
           portfolio_urls?: string[]
@@ -905,8 +880,8 @@ export type Database = {
           contact_value?: string
           created_at?: string
           id?: string
-          internal_notes?: string | null
           intake_submission_id?: string | null
+          internal_notes?: string | null
           linked_provider_profile_id?: string | null
           policy_accepted_at?: string | null
           portfolio_urls?: string[]
@@ -1143,6 +1118,35 @@ export type Database = {
         }
         Relationships: []
       }
+      student_decision_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          request_candidate_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          request_candidate_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          request_candidate_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_decision_tokens_request_candidate_id_fkey"
+            columns: ["request_candidate_id"]
+            isOneToOne: true
+            referencedRelation: "request_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_events: {
         Row: {
           actor_user_id: string | null
@@ -1233,9 +1237,17 @@ export type Database = {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined
       }
+      respond_to_presented_candidate: {
+        Args: {
+          p_decision: string
+          p_decline_reason?: string
+          p_token_id: string
+        }
+        Returns: string
+      }
       respond_to_request_candidate_invitation: {
         Args: {
-          p_decline_reason?: string | null
+          p_decline_reason?: string
           p_response: string
           p_token_id: string
         }
@@ -1377,9 +1389,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
