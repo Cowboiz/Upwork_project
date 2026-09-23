@@ -12,14 +12,16 @@ type ProjectRequest = Pick<
 
 type ProviderApplication = Pick<
   Database["public"]["Tables"]["provider_applications"]["Row"],
-  "id" | "status"
+  "applicant_name" | "created_at" | "id" | "status"
 >;
 
 type RequestCandidate = Pick<
   Database["public"]["Tables"]["request_candidates"]["Row"],
   | "id"
   | "project_request_id"
+  | "provider_application_id"
   | "provider_response_status"
+  | "student_decision_at"
   | "student_decision_status"
 >;
 
@@ -65,7 +67,21 @@ export type OpsEmailDelivery = {
   sentCount: number;
 };
 
-type EventScope = "request" | "candidate" | "engagement";
+export type OpsAgingWorkflowItem = {
+  ageBucket: "<24h" | "24-48h" | ">48h";
+  ageHours: number;
+  href: string;
+  id: string;
+  itemType: "Accepted match" | "Provider application";
+  startedAt: string;
+  title: string;
+};
+
+export type OpsAgingWorkflow = {
+  items: OpsAgingWorkflowItem[];
+};
+
+type EventScope = "request" | "provider" | "candidate" | "engagement";
 type EntityEventMaps = Map<EventScope, Map<string, Map<string, number>>>;
 
 type LatencyResult = {
@@ -113,6 +129,7 @@ export type OpsFunnelStep = {
 
 export type OpsData = {
   emailDelivery: OpsEmailDelivery;
+  agingWorkflow: OpsAgingWorkflow;
   queues: OpsQueue[];
   metrics: OpsMetric[];
   instrumentedMetrics: OpsInstrumentedMetric[];
@@ -206,6 +223,7 @@ function addEventTime(
 function buildEventMaps(events: WorkflowEvent[]) {
   const maps: EntityEventMaps = new Map([
     ["request", new Map()],
+    ["provider", new Map()],
     ["candidate", new Map()],
     ["engagement", new Map()],
   ]);
@@ -215,6 +233,13 @@ function buildEventMaps(events: WorkflowEvent[]) {
       maps,
       "request",
       event.project_request_id,
+      event.event_name,
+      event.occurred_at,
+    );
+    addEventTime(
+      maps,
+      "provider",
+      event.provider_application_id,
       event.event_name,
       event.occurred_at,
     );
@@ -305,6 +330,28 @@ function formatDuration(ms: number | null) {
   const days = hours / 24;
 
   return `${days.toFixed(days < 10 ? 1 : 0)}d`;
+}
+
+function ageHoursSince(value: string, nowMs: number) {
+  const startedAt = new Date(value).getTime();
+
+  if (!Number.isFinite(startedAt)) {
+    return null;
+  }
+
+  return Math.max(0, (nowMs - startedAt) / (60 * 60 * 1000));
+}
+
+function ageBucket(ageHours: number): OpsAgingWorkflowItem["ageBucket"] {
+  if (ageHours < 24) {
+    return "<24h";
+  }
+
+  if (ageHours <= 48) {
+    return "24-48h";
+  }
+
+  return ">48h";
 }
 
 function median(values: number[]) {
@@ -450,6 +497,90 @@ function groupCandidatesByRequest(candidates: RequestCandidate[]) {
   });
 
   return requestCandidates;
+}
+
+function buildAgingWorkflow({
+  candidates,
+  engagements,
+  eventMaps,
+  providers,
+}: {
+  candidates: RequestCandidate[];
+  engagements: ProjectEngagement[];
+  eventMaps: EntityEventMaps;
+  providers: ProviderApplication[];
+}) {
+  const nowMs = Date.now();
+  const engagementCandidateIds = new Set(
+    engagements.map((engagement) => engagement.request_candidate_id),
+  );
+  const providerById = new Map(
+    providers.map((provider) => [provider.id, provider]),
+  );
+  const items: OpsAgingWorkflowItem[] = [];
+
+  providers.forEach((provider) => {
+    if (provider.status !== "new") {
+      return;
+    }
+
+    if (
+      eventTime(eventMaps, "provider", provider.id, "provider_first_reviewed") !==
+      null
+    ) {
+      return;
+    }
+
+    const ageHours = ageHoursSince(provider.created_at, nowMs);
+
+    if (ageHours === null) {
+      return;
+    }
+
+    items.push({
+      ageBucket: ageBucket(ageHours),
+      ageHours,
+      href: `/admin/providers/${provider.id}`,
+      id: provider.id,
+      itemType: "Provider application",
+      startedAt: provider.created_at,
+      title: provider.applicant_name,
+    });
+  });
+
+  candidates.forEach((candidate) => {
+    if (
+      candidate.student_decision_status !== "accepted" ||
+      candidate.student_decision_at === null ||
+      engagementCandidateIds.has(candidate.id)
+    ) {
+      return;
+    }
+
+    const ageHours = ageHoursSince(candidate.student_decision_at, nowMs);
+
+    if (ageHours === null) {
+      return;
+    }
+
+    const providerName = candidate.provider_application_id
+      ? providerById.get(candidate.provider_application_id)?.applicant_name
+      : null;
+
+    items.push({
+      ageBucket: ageBucket(ageHours),
+      ageHours,
+      href: `/admin/requests/${candidate.project_request_id}`,
+      id: candidate.id,
+      itemType: "Accepted match",
+      startedAt: candidate.student_decision_at,
+      title: providerName ?? "Accepted provider match",
+    });
+  });
+
+  items.sort((first, second) => second.ageHours - first.ageHours);
+
+  return { items } satisfies OpsAgingWorkflow;
 }
 
 function buildInstrumentedMetrics({
@@ -635,11 +766,13 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
     supabase
       .from("project_requests")
       .select("id, status, integrity_review_status"),
-    supabase.from("provider_applications").select("id, status"),
+    supabase
+      .from("provider_applications")
+      .select("id, status, created_at, applicant_name"),
     supabase
       .from("request_candidates")
       .select(
-        "id, project_request_id, provider_response_status, student_decision_status",
+        "id, project_request_id, provider_application_id, provider_response_status, student_decision_status, student_decision_at",
       ),
     supabase
       .from("project_engagements")
@@ -1027,6 +1160,12 @@ export async function getOpsDashboardData(supabase: Supabase): Promise<OpsData> 
       recentFailed: recentFailedEmails satisfies OpsEmailFailure[],
       sentCount: sentEmailCount ?? 0,
     },
+    agingWorkflow: buildAgingWorkflow({
+      candidates: safeCandidates,
+      engagements: safeEngagements,
+      eventMaps,
+      providers: safeProviders,
+    }),
     metrics,
     instrumentedMetrics: buildInstrumentedMetrics({
       candidates: safeCandidates,
