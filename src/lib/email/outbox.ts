@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { buildProviderResponseUrl } from "@/lib/provider-response/tokens";
+import { buildStudentDecisionUrl } from "@/lib/student-decision/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getAdminNotificationEmail,
@@ -345,11 +346,19 @@ export async function sendShortlistPresentedNotification(
       return;
     }
 
-    await enqueueAndSendEmail(createSupabaseAdminClient(), {
+    const supabase = createSupabaseAdminClient();
+    const decisionUrl = await buildStudentDecisionUrl(supabase, input.candidateId);
+
+    if (!decisionUrl) {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
       ...shortlistPresentedEmail({
         availability: input.availability,
         candidateRank: input.candidateRank,
         currency: input.currency,
+        decisionUrl,
         proposedPrice: input.proposedPrice,
         providerName: input.providerName,
         rateExpectations: input.rateExpectations,
