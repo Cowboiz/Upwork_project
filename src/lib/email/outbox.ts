@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { buildProviderResponseUrl } from "@/lib/provider-response/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getAdminNotificationEmail,
@@ -298,7 +299,17 @@ export async function sendProviderContactedNotification(
       return;
     }
 
-    await enqueueAndSendEmail(createSupabaseAdminClient(), {
+    const supabase = createSupabaseAdminClient();
+    const responseUrl = await buildProviderResponseUrl(
+      supabase,
+      input.candidateId,
+    );
+
+    if (!responseUrl) {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
       ...providerContactedEmail({
         budgetRange: input.budgetRange,
         budgetCurrency: input.budgetCurrency,
@@ -308,6 +319,7 @@ export async function sendProviderContactedNotification(
         proposedCurrency: input.proposedCurrency,
         proposedPrice: input.proposedPrice,
         providerName: input.providerName,
+        responseUrl,
         scopeSummary: input.scopeSummary,
       }),
       dedupeKey: `provider_contacted:provider:${input.candidateId}`,

@@ -937,6 +937,35 @@ export type Database = {
           },
         ]
       }
+      provider_response_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          request_candidate_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          request_candidate_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          request_candidate_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_response_tokens_request_candidate_id_fkey"
+            columns: ["request_candidate_id"]
+            isOneToOne: true
+            referencedRelation: "request_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_candidates: {
         Row: {
           agreed_deadline: string | null
@@ -1203,6 +1232,14 @@ export type Database = {
       mark_request_candidate_contacted: {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined
+      }
+      respond_to_request_candidate_invitation: {
+        Args: {
+          p_decline_reason?: string | null
+          p_response: string
+          p_token_id: string
+        }
+        Returns: string
       }
       update_project_engagement_status: {
         Args: {
