@@ -61,7 +61,7 @@ export async function submitProviderInvitationResponse(formData: FormData) {
   const { error } = await createSupabaseAdminClient().rpc(
     "respond_to_request_candidate_invitation",
     {
-      p_decline_reason: parsed.data.decline_reason,
+      p_decline_reason: parsed.data.decline_reason ?? undefined,
       p_response: parsed.data.response,
       p_token_id: verified.tokenId,
     },
