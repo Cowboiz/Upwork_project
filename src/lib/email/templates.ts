@@ -19,6 +19,7 @@ type ProviderContactedTemplateInput = {
   proposedCurrency: string;
   proposedPrice: number | null;
   providerName: string;
+  responseUrl: string;
   scopeSummary: string | null;
 };
 
@@ -78,6 +79,7 @@ export function providerContactedEmail({
   proposedCurrency,
   proposedPrice,
   providerName,
+  responseUrl,
   scopeSummary,
 }: ProviderContactedTemplateInput): Omit<EmailMessage, "to"> {
   return {
@@ -93,7 +95,8 @@ export function providerContactedEmail({
       `Proposed price: ${formatPrice(proposedPrice, proposedCurrency)}`,
       scopeSummary ? `Scope summary: ${scopeSummary}` : null,
       "",
-      "Reply to the ProjectMatch operator with your interest or questions.",
+      "Review request and respond:",
+      responseUrl,
       "",
       "Thanks,",
       "ProjectMatch",
