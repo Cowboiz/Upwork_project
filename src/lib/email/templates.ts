@@ -33,6 +33,26 @@ type EngagementCreatedProviderTemplateInput = {
   scopeSummary: string | null;
 };
 
+type EngagementSubmittedStudentTemplateInput = {
+  agreedAmount: number;
+  agreedCurrency: string;
+  engagementUrl: string;
+  projectCategory: string;
+  providerName: string;
+};
+
+type EngagementCompletedProviderTemplateInput = {
+  projectCategory: string;
+  providerName: string;
+};
+
+type EngagementDisputedAdminTemplateInput = {
+  adminUrl: string;
+  engagementId: string;
+  projectCategory: string;
+  requestId: string;
+};
+
 type ShortlistPresentedTemplateInput = {
   availability: string;
   candidateRank: number;
@@ -146,6 +166,73 @@ export function engagementCreatedProviderEmail({
     ]
       .filter((line): line is string => line !== null)
       .join("\n"),
+  };
+}
+
+export function engagementSubmittedStudentEmail({
+  agreedAmount,
+  agreedCurrency,
+  engagementUrl,
+  projectCategory,
+  providerName,
+}: EngagementSubmittedStudentTemplateInput): Omit<EmailMessage, "to"> {
+  return {
+    subject: "A ProjectMatch deliverable is ready for review",
+    text: [
+      "A ProjectMatch provider submitted work for your engagement.",
+      "",
+      `Project category: ${formatStatus(projectCategory)}`,
+      `Provider: ${providerName}`,
+      `Agreed amount: ${formatPrice(agreedAmount, agreedCurrency)}`,
+      "",
+      "Review the deliverable and confirm the next step:",
+      engagementUrl,
+      "",
+      "Thanks,",
+      "ProjectMatch",
+    ].join("\n"),
+  };
+}
+
+export function engagementCompletedProviderEmail({
+  projectCategory,
+  providerName,
+}: EngagementCompletedProviderTemplateInput): Omit<EmailMessage, "to"> {
+  return {
+    subject: "ProjectMatch engagement completed",
+    text: [
+      `Hi ${providerName},`,
+      "",
+      "The student confirmed completion for a ProjectMatch engagement.",
+      "",
+      `Project category: ${formatStatus(projectCategory)}`,
+      "",
+      "ProjectMatch will coordinate any remaining operational next steps.",
+      "",
+      "Thanks,",
+      "ProjectMatch",
+    ].join("\n"),
+  };
+}
+
+export function engagementDisputedAdminEmail({
+  adminUrl,
+  engagementId,
+  projectCategory,
+  requestId,
+}: EngagementDisputedAdminTemplateInput): Omit<EmailMessage, "to"> {
+  return {
+    subject: "ProjectMatch engagement issue reported",
+    text: [
+      "A student reported an issue for a ProjectMatch engagement.",
+      "",
+      `Project category: ${formatStatus(projectCategory)}`,
+      `Request id: ${requestId}`,
+      `Engagement id: ${engagementId}`,
+      "",
+      "Review the authenticated admin request page for issue details:",
+      adminUrl,
+    ].join("\n"),
   };
 }
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { verifyEngagementAccessBearerToken } from "@/lib/engagement/tokens";
+import { sendEngagementSubmittedStudentNotification } from "@/lib/email/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type ProviderEngagementRpcClient = {
@@ -176,6 +177,10 @@ export async function submitProviderEngagementDeliverable(formData: FormData) {
       error: friendlyEngagementError(error.message),
     });
   }
+
+  await sendEngagementSubmittedStudentNotification({
+    engagementId: verified.tokenRow.project_engagement_id,
+  });
 
   revalidatePath("/engagement/provider");
   redirectToProviderPage(token, { saved: "submitted" });
