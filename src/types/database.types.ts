@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       contracts: {
@@ -229,6 +254,41 @@ export type Database = {
             columns: ["related_request_candidate_id"]
             isOneToOne: false
             referencedRelation: "request_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_access_tokens: {
+        Row: {
+          audience: string
+          created_at: string
+          expires_at: string
+          id: string
+          project_engagement_id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          audience: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          project_engagement_id: string
+          revoked_at?: string | null
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          project_engagement_id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_access_tokens_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
             referencedColumns: ["id"]
           },
         ]
@@ -514,6 +574,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           currency: string
+          deliverable_summary: string | null
+          deliverable_url: string | null
           dispute_notes: string | null
           id: string
           internal_notes: string | null
@@ -525,6 +587,7 @@ export type Database = {
           started_at: string | null
           status: string
           student_feedback: string | null
+          submitted_at: string | null
           updated_at: string
         }
         Insert: {
@@ -534,6 +597,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           currency: string
+          deliverable_summary?: string | null
+          deliverable_url?: string | null
           dispute_notes?: string | null
           id?: string
           internal_notes?: string | null
@@ -545,6 +610,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           student_feedback?: string | null
+          submitted_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -554,6 +620,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           currency?: string
+          deliverable_summary?: string | null
+          deliverable_url?: string | null
           dispute_notes?: string | null
           id?: string
           internal_notes?: string | null
@@ -565,6 +633,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           student_feedback?: string | null
+          submitted_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1389,6 +1458,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
