@@ -3,6 +3,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import {
+  buildEngagementProviderUrl,
+  buildExistingEngagementProviderUrl,
+} from "@/lib/engagement/tokens";
+import {
   buildExistingProviderResponseUrl,
   buildProviderResponseUrl,
 } from "@/lib/provider-response/tokens";
@@ -21,6 +25,7 @@ import {
 import {
   adminNewProviderApplicationEmail,
   adminNewRequestEmail,
+  engagementCreatedProviderEmail,
   providerContactedEmail,
   providerApplicationSubmittedEmail,
   requesterRequestSubmittedEmail,
@@ -39,6 +44,7 @@ type RetryEmailOutboxRow = Pick<
   | "id"
   | "provider_recipient_email"
   | "recipient_role"
+  | "related_project_engagement_id"
   | "related_project_request_id"
   | "related_provider_application_id"
   | "related_request_candidate_id"
@@ -119,6 +125,10 @@ type ShortlistPresentedNotificationInput = {
   rateExpectations: string;
   scopeSummary: string | null;
   skills: string[];
+};
+
+type EngagementCreatedProviderNotificationInput = {
+  engagementId: string;
 };
 
 function sanitizeEmailError(error: unknown) {
@@ -229,7 +239,7 @@ async function loadRetryOutboxRow(supabase: Supabase, outboxId: string) {
   const { data, error } = await supabase
     .from("email_outbox")
     .select(
-      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_engagement_id, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
     )
     .eq("id", outboxId)
     .maybeSingle();
@@ -256,7 +266,7 @@ async function claimFailedRetry(
     .eq("status", "failed")
     .eq("attempt_count", row.attempt_count)
     .select(
-      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_engagement_id, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
     )
     .maybeSingle();
 
@@ -284,7 +294,7 @@ async function markRetrySent(
     .eq("status", "pending")
     .eq("attempt_count", row.attempt_count)
     .select(
-      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_engagement_id, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
     )
     .maybeSingle();
 
@@ -310,7 +320,7 @@ async function markRetryFailed(
     .eq("status", "pending")
     .eq("attempt_count", row.attempt_count)
     .select(
-      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
+      "id, dedupe_key, template_key, recipient_role, provider_recipient_email, related_project_engagement_id, related_project_request_id, related_provider_application_id, related_request_candidate_id, status, attempt_count",
     )
     .maybeSingle();
 
@@ -494,6 +504,76 @@ async function reconstructShortlistPresentedEmail(
   });
 }
 
+async function reconstructEngagementCreatedProviderEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_project_engagement_id) {
+    retryFailure("missing related engagement.");
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from("project_engagements")
+    .select(
+      "id, request_candidate_id, agreed_amount, currency, agreed_deadline",
+    )
+    .eq("id", row.related_project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    retryFailure("engagement data unavailable.");
+  }
+
+  const { data: candidate, error: candidateError } = await supabase
+    .from("request_candidates")
+    .select("id, project_request_id, provider_application_id, scope_summary")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate?.provider_application_id) {
+    retryFailure("engagement candidate data unavailable.");
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+  ] = await Promise.all([
+    supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle(),
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name")
+      .eq("id", candidate.provider_application_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || !request || !provider) {
+    retryFailure("engagement provider data unavailable.");
+  }
+
+  const engagementUrl = await buildExistingEngagementProviderUrl(
+    engagement.id,
+    supabase,
+  );
+
+  if (!engagementUrl) {
+    retryFailure("Engagement link is no longer valid for retry.");
+  }
+
+  return engagementCreatedProviderEmail({
+    agreedAmount: engagement.agreed_amount,
+    agreedCurrency: engagement.currency,
+    agreedDeadline: engagement.agreed_deadline,
+    engagementUrl,
+    projectCategory: request.category,
+    providerName: provider.applicant_name,
+    scopeSummary: candidate.scope_summary,
+  });
+}
+
 async function reconstructRetryEmail(
   supabase: Supabase,
   row: RetryEmailOutboxRow,
@@ -511,6 +591,8 @@ async function reconstructRetryEmail(
       return reconstructProviderContactedEmail(supabase, row);
     case "shortlist_presented_student":
       return reconstructShortlistPresentedEmail(supabase, row);
+    case "engagement_created_provider":
+      return reconstructEngagementCreatedProviderEmail(supabase, row);
     default:
       retryFailure("unsupported template.");
   }
@@ -849,6 +931,92 @@ export async function sendShortlistPresentedNotification(
       },
       templateKey: "shortlist_presented_student",
       to: input.contactValue,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+export async function sendEngagementCreatedProviderNotification(
+  input: EngagementCreatedProviderNotificationInput,
+) {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data: engagement, error: engagementError } = await supabase
+      .from("project_engagements")
+      .select(
+        "id, request_candidate_id, agreed_amount, currency, agreed_deadline",
+      )
+      .eq("id", input.engagementId)
+      .maybeSingle();
+
+    if (engagementError || !engagement) {
+      return;
+    }
+
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select("id, project_request_id, provider_application_id, scope_summary")
+      .eq("id", engagement.request_candidate_id)
+      .maybeSingle();
+
+    if (candidateError || !candidate?.provider_application_id) {
+      return;
+    }
+
+    const [
+      { data: request, error: requestError },
+      { data: provider, error: providerError },
+    ] = await Promise.all([
+      supabase
+        .from("project_requests")
+        .select("id, category")
+        .eq("id", candidate.project_request_id)
+        .maybeSingle(),
+      supabase
+        .from("provider_applications")
+        .select("id, applicant_name, contact_method, contact_value")
+        .eq("id", candidate.provider_application_id)
+        .maybeSingle(),
+    ]);
+
+    if (requestError || providerError || !request || !provider) {
+      return;
+    }
+
+    if (provider.contact_method !== "email") {
+      return;
+    }
+
+    const engagementUrl = await buildEngagementProviderUrl(
+      engagement.id,
+      supabase,
+    );
+
+    if (!engagementUrl) {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
+      ...engagementCreatedProviderEmail({
+        agreedAmount: engagement.agreed_amount,
+        agreedCurrency: engagement.currency,
+        agreedDeadline: engagement.agreed_deadline,
+        engagementUrl,
+        projectCategory: request.category,
+        providerName: provider.applicant_name,
+        scopeSummary: candidate.scope_summary,
+      }),
+      dedupeKey: `engagement_created:provider:${engagement.id}`,
+      recipientRole: "provider",
+      related: {
+        related_project_engagement_id: engagement.id,
+        related_project_request_id: request.id,
+        related_provider_application_id: provider.id,
+        related_request_candidate_id: candidate.id,
+      },
+      templateKey: "engagement_created_provider",
+      to: provider.contact_value,
     });
   } catch {
     // Email notification failures must not block successful workflow updates.

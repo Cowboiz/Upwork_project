@@ -1322,6 +1322,15 @@ export type Database = {
         }
         Returns: string
       }
+      start_engagement_work: { Args: { p_token_id: string }; Returns: string }
+      submit_engagement_deliverable: {
+        Args: {
+          p_deliverable_summary?: string
+          p_deliverable_url?: string
+          p_token_id: string
+        }
+        Returns: string
+      }
       update_project_engagement_status: {
         Args: {
           p_engagement_id: string

@@ -2,46 +2,24 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database.types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type EngagementAccessAudience = "provider" | "student";
 
-export type EngagementAccessTokenRow = {
+export type EngagementAccessTokenRow = Pick<
+  Database["public"]["Tables"]["engagement_access_tokens"]["Row"],
+  | "audience"
+  | "created_at"
+  | "expires_at"
+  | "id"
+  | "project_engagement_id"
+  | "revoked_at"
+> & {
   audience: EngagementAccessAudience;
-  created_at: string;
-  expires_at: string;
-  id: string;
-  project_engagement_id: string;
-  revoked_at: string | null;
 };
 
-type EngagementAccessTokenInsert = {
-  audience: EngagementAccessAudience;
-  created_at?: string;
-  expires_at: string;
-  id?: string;
-  project_engagement_id: string;
-  revoked_at?: string | null;
-};
-
-type EngagementTokenDatabase = {
-  public: {
-    CompositeTypes: Record<string, never>;
-    Enums: Record<string, never>;
-    Functions: Record<string, never>;
-    Tables: {
-      engagement_access_tokens: {
-        Insert: EngagementAccessTokenInsert;
-        Relationships: [];
-        Row: EngagementAccessTokenRow;
-        Update: Partial<EngagementAccessTokenInsert>;
-      };
-    };
-    Views: Record<string, never>;
-  };
-};
-
-type EngagementTokenSupabase = SupabaseClient<EngagementTokenDatabase>;
+type Supabase = SupabaseClient<Database>;
 
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const TOKEN_PATTERN =
@@ -63,6 +41,10 @@ function requireEnv(name: string) {
   }
 
   return value;
+}
+
+function getAppBaseUrl() {
+  return requireEnv("APP_BASE_URL").replace(/\/+$/, "");
 }
 
 function engagementAccessTokenSecret() {
@@ -159,12 +141,8 @@ export function parseEngagementAccessBearerToken(token: string | undefined) {
   };
 }
 
-function createEngagementTokenSupabase() {
-  return createSupabaseAdminClient() as unknown as EngagementTokenSupabase;
-}
-
 async function loadTokenRowById(
-  supabase: EngagementTokenSupabase,
+  supabase: Supabase,
   tokenId: string,
 ) {
   const { data, error } = await supabase
@@ -181,7 +159,7 @@ async function loadTokenRowById(
 }
 
 async function loadTokenRowByEngagementAndAudience(
-  supabase: EngagementTokenSupabase,
+  supabase: Supabase,
   engagementId: string,
   audience: EngagementAccessAudience,
 ) {
@@ -202,7 +180,7 @@ async function loadTokenRowByEngagementAndAudience(
 export async function ensureEngagementAccessToken(
   engagementId: string,
   audience: EngagementAccessAudience,
-  supabase: EngagementTokenSupabase = createEngagementTokenSupabase(),
+  supabase: Supabase = createSupabaseAdminClient(),
 ) {
   assertEngagementAccessAudience(audience);
 
@@ -251,7 +229,7 @@ export async function verifyEngagementAccessBearerToken(
     return { ok: false as const, reason: "invalid" as const };
   }
 
-  const supabase = createEngagementTokenSupabase();
+  const supabase = createSupabaseAdminClient();
   const tokenRow = await loadTokenRowById(supabase, parsed.tokenId);
 
   if (!tokenRow) {
@@ -287,5 +265,110 @@ export async function verifyEngagementAccessBearerToken(
     supabase,
     tokenId: tokenRow.id,
     tokenRow,
+  };
+}
+
+function tokenIsCurrentlyUsable(row: EngagementAccessTokenRow) {
+  return row.revoked_at === null && new Date(row.expires_at).getTime() > Date.now();
+}
+
+export async function buildEngagementProviderUrl(
+  engagementId: string,
+  supabase: Supabase = createSupabaseAdminClient(),
+) {
+  const tokenRow = await ensureEngagementAccessToken(
+    engagementId,
+    "provider",
+    supabase,
+  );
+
+  if (!tokenRow || !tokenIsCurrentlyUsable(tokenRow)) {
+    return null;
+  }
+
+  const url = new URL("/engagement/provider", getAppBaseUrl());
+
+  url.searchParams.set("token", buildEngagementAccessBearerToken(tokenRow));
+
+  return url.toString();
+}
+
+export async function buildExistingEngagementProviderUrl(
+  engagementId: string,
+  supabase: Supabase = createSupabaseAdminClient(),
+) {
+  const tokenRow = await loadTokenRowByEngagementAndAudience(
+    supabase,
+    engagementId,
+    "provider",
+  );
+
+  if (!tokenRow || !tokenIsCurrentlyUsable(tokenRow)) {
+    return null;
+  }
+
+  const url = new URL("/engagement/provider", getAppBaseUrl());
+
+  url.searchParams.set("token", buildEngagementAccessBearerToken(tokenRow));
+
+  return url.toString();
+}
+
+export async function loadProviderEngagementDelivery(token: string | undefined) {
+  const verified = await verifyEngagementAccessBearerToken(token, "provider");
+
+  if (!verified.ok) {
+    return verified;
+  }
+
+  const { data: engagement, error: engagementError } = await verified.supabase
+    .from("project_engagements")
+    .select(
+      "id, request_candidate_id, agreed_amount, currency, agreed_deadline, status, started_at, submitted_at, deliverable_url, deliverable_summary",
+    )
+    .eq("id", verified.tokenRow.project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const { data: candidate, error: candidateError } = await verified.supabase
+    .from("request_candidates")
+    .select("id, project_request_id, provider_application_id, scope_summary")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate?.provider_application_id) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+  ] = await Promise.all([
+    verified.supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle(),
+    verified.supabase
+      .from("provider_applications")
+      .select("id, status")
+      .eq("id", candidate.provider_application_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || !request || !provider) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  return {
+    candidate,
+    engagement,
+    ok: true as const,
+    provider,
+    request,
+    tokenId: verified.tokenId,
   };
 }

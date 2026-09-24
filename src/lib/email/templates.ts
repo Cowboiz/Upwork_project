@@ -23,6 +23,16 @@ type ProviderContactedTemplateInput = {
   scopeSummary: string | null;
 };
 
+type EngagementCreatedProviderTemplateInput = {
+  agreedAmount: number;
+  agreedCurrency: string;
+  agreedDeadline: string | null;
+  engagementUrl: string;
+  projectCategory: string;
+  providerName: string;
+  scopeSummary: string | null;
+};
+
 type ShortlistPresentedTemplateInput = {
   availability: string;
   candidateRank: number;
@@ -98,6 +108,38 @@ export function providerContactedEmail({
       "",
       "Review request and respond:",
       responseUrl,
+      "",
+      "Thanks,",
+      "ProjectMatch",
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n"),
+  };
+}
+
+export function engagementCreatedProviderEmail({
+  agreedAmount,
+  agreedCurrency,
+  agreedDeadline,
+  engagementUrl,
+  projectCategory,
+  providerName,
+  scopeSummary,
+}: EngagementCreatedProviderTemplateInput): Omit<EmailMessage, "to"> {
+  return {
+    subject: "Your ProjectMatch engagement is ready",
+    text: [
+      `Hi ${providerName},`,
+      "",
+      "A ProjectMatch engagement is ready for provider delivery.",
+      "",
+      `Project category: ${formatStatus(projectCategory)}`,
+      `Agreed amount: ${formatPrice(agreedAmount, agreedCurrency)}`,
+      `Agreed deadline: ${agreedDeadline ?? "Not set"}`,
+      scopeSummary ? `Scope summary: ${scopeSummary}` : null,
+      "",
+      "Open your engagement to start work:",
+      engagementUrl,
       "",
       "Thanks,",
       "ProjectMatch",
