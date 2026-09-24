@@ -4,7 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import {
   buildEngagementProviderUrl,
+  buildEngagementStudentUrl,
   buildExistingEngagementProviderUrl,
+  buildExistingEngagementStudentUrl,
 } from "@/lib/engagement/tokens";
 import {
   buildExistingProviderResponseUrl,
@@ -26,6 +28,9 @@ import {
   adminNewProviderApplicationEmail,
   adminNewRequestEmail,
   engagementCreatedProviderEmail,
+  engagementCompletedProviderEmail,
+  engagementDisputedAdminEmail,
+  engagementSubmittedStudentEmail,
   providerContactedEmail,
   providerApplicationSubmittedEmail,
   requesterRequestSubmittedEmail,
@@ -130,6 +135,24 @@ type ShortlistPresentedNotificationInput = {
 type EngagementCreatedProviderNotificationInput = {
   engagementId: string;
 };
+
+type EngagementNotificationInput = {
+  engagementId: string;
+};
+
+function appBaseUrl() {
+  const value = process.env.APP_BASE_URL?.trim();
+
+  if (!value) {
+    throw new Error("Missing required environment variable: APP_BASE_URL");
+  }
+
+  return value.replace(/\/+$/, "");
+}
+
+function adminRequestUrl(requestId: string) {
+  return new URL(`/admin/requests/${requestId}`, appBaseUrl()).toString();
+}
 
 function sanitizeEmailError(error: unknown) {
   if (error instanceof Error && error.message.startsWith("Missing required")) {
@@ -574,6 +597,172 @@ async function reconstructEngagementCreatedProviderEmail(
   });
 }
 
+async function reconstructEngagementSubmittedStudentEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_project_engagement_id) {
+    retryFailure("missing related engagement.");
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from("project_engagements")
+    .select("id, request_candidate_id, agreed_amount, currency")
+    .eq("id", row.related_project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    retryFailure("engagement data unavailable.");
+  }
+
+  const { data: candidate, error: candidateError } = await supabase
+    .from("request_candidates")
+    .select("id, project_request_id, provider_application_id")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate?.provider_application_id) {
+    retryFailure("engagement candidate data unavailable.");
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+  ] = await Promise.all([
+    supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle(),
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name")
+      .eq("id", candidate.provider_application_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || !request || !provider) {
+    retryFailure("engagement student data unavailable.");
+  }
+
+  const engagementUrl = await buildExistingEngagementStudentUrl(
+    engagement.id,
+    supabase,
+  );
+
+  if (!engagementUrl) {
+    retryFailure("Student engagement link is no longer valid for retry.");
+  }
+
+  return engagementSubmittedStudentEmail({
+    agreedAmount: engagement.agreed_amount,
+    agreedCurrency: engagement.currency,
+    engagementUrl,
+    projectCategory: request.category,
+    providerName: provider.applicant_name,
+  });
+}
+
+async function reconstructEngagementCompletedProviderEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_project_engagement_id) {
+    retryFailure("missing related engagement.");
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from("project_engagements")
+    .select("id, request_candidate_id")
+    .eq("id", row.related_project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    retryFailure("engagement data unavailable.");
+  }
+
+  const { data: candidate, error: candidateError } = await supabase
+    .from("request_candidates")
+    .select("id, project_request_id, provider_application_id")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate?.provider_application_id) {
+    retryFailure("engagement candidate data unavailable.");
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+  ] = await Promise.all([
+    supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle(),
+    supabase
+      .from("provider_applications")
+      .select("id, applicant_name")
+      .eq("id", candidate.provider_application_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || !request || !provider) {
+    retryFailure("engagement provider data unavailable.");
+  }
+
+  return engagementCompletedProviderEmail({
+    projectCategory: request.category,
+    providerName: provider.applicant_name,
+  });
+}
+
+async function reconstructEngagementDisputedAdminEmail(
+  supabase: Supabase,
+  row: RetryEmailOutboxRow,
+) {
+  if (!row.related_project_engagement_id) {
+    retryFailure("missing related engagement.");
+  }
+
+  const { data: engagement, error: engagementError } = await supabase
+    .from("project_engagements")
+    .select("id, request_candidate_id")
+    .eq("id", row.related_project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    retryFailure("engagement data unavailable.");
+  }
+
+  const { data: candidate, error: candidateError } = await supabase
+    .from("request_candidates")
+    .select("id, project_request_id")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate) {
+    retryFailure("engagement candidate data unavailable.");
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from("project_requests")
+    .select("id, category")
+    .eq("id", candidate.project_request_id)
+    .maybeSingle();
+
+  if (requestError || !request) {
+    retryFailure("engagement request data unavailable.");
+  }
+
+  return engagementDisputedAdminEmail({
+    adminUrl: adminRequestUrl(request.id),
+    engagementId: engagement.id,
+    projectCategory: request.category,
+    requestId: request.id,
+  });
+}
+
 async function reconstructRetryEmail(
   supabase: Supabase,
   row: RetryEmailOutboxRow,
@@ -593,6 +782,12 @@ async function reconstructRetryEmail(
       return reconstructShortlistPresentedEmail(supabase, row);
     case "engagement_created_provider":
       return reconstructEngagementCreatedProviderEmail(supabase, row);
+    case "engagement_submitted_student":
+      return reconstructEngagementSubmittedStudentEmail(supabase, row);
+    case "engagement_completed_provider":
+      return reconstructEngagementCompletedProviderEmail(supabase, row);
+    case "engagement_disputed_admin":
+      return reconstructEngagementDisputedAdminEmail(supabase, row);
     default:
       retryFailure("unsupported template.");
   }
@@ -1017,6 +1212,224 @@ export async function sendEngagementCreatedProviderNotification(
       },
       templateKey: "engagement_created_provider",
       to: provider.contact_value,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+export async function sendEngagementSubmittedStudentNotification(
+  input: EngagementNotificationInput,
+) {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data: engagement, error: engagementError } = await supabase
+      .from("project_engagements")
+      .select("id, request_candidate_id, agreed_amount, currency")
+      .eq("id", input.engagementId)
+      .maybeSingle();
+
+    if (engagementError || !engagement) {
+      return;
+    }
+
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select("id, project_request_id, provider_application_id")
+      .eq("id", engagement.request_candidate_id)
+      .maybeSingle();
+
+    if (candidateError || !candidate?.provider_application_id) {
+      return;
+    }
+
+    const [
+      { data: request, error: requestError },
+      { data: provider, error: providerError },
+    ] = await Promise.all([
+      supabase
+        .from("project_requests")
+        .select("id, category, contact_method, contact_value")
+        .eq("id", candidate.project_request_id)
+        .maybeSingle(),
+      supabase
+        .from("provider_applications")
+        .select("id, applicant_name")
+        .eq("id", candidate.provider_application_id)
+        .maybeSingle(),
+    ]);
+
+    if (requestError || providerError || !request || !provider) {
+      return;
+    }
+
+    if (request.contact_method !== "email") {
+      return;
+    }
+
+    const engagementUrl = await buildEngagementStudentUrl(
+      engagement.id,
+      supabase,
+    );
+
+    if (!engagementUrl) {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
+      ...engagementSubmittedStudentEmail({
+        agreedAmount: engagement.agreed_amount,
+        agreedCurrency: engagement.currency,
+        engagementUrl,
+        projectCategory: request.category,
+        providerName: provider.applicant_name,
+      }),
+      dedupeKey: `engagement_submitted:student:${engagement.id}`,
+      recipientRole: "student",
+      related: {
+        related_project_engagement_id: engagement.id,
+        related_project_request_id: request.id,
+        related_provider_application_id: provider.id,
+        related_request_candidate_id: candidate.id,
+      },
+      templateKey: "engagement_submitted_student",
+      to: request.contact_value,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+export async function sendEngagementCompletedProviderNotification(
+  input: EngagementNotificationInput,
+) {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data: engagement, error: engagementError } = await supabase
+      .from("project_engagements")
+      .select("id, request_candidate_id")
+      .eq("id", input.engagementId)
+      .maybeSingle();
+
+    if (engagementError || !engagement) {
+      return;
+    }
+
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select("id, project_request_id, provider_application_id")
+      .eq("id", engagement.request_candidate_id)
+      .maybeSingle();
+
+    if (candidateError || !candidate?.provider_application_id) {
+      return;
+    }
+
+    const [
+      { data: request, error: requestError },
+      { data: provider, error: providerError },
+    ] = await Promise.all([
+      supabase
+        .from("project_requests")
+        .select("id, category")
+        .eq("id", candidate.project_request_id)
+        .maybeSingle(),
+      supabase
+        .from("provider_applications")
+        .select("id, applicant_name, contact_method, contact_value")
+        .eq("id", candidate.provider_application_id)
+        .maybeSingle(),
+    ]);
+
+    if (requestError || providerError || !request || !provider) {
+      return;
+    }
+
+    if (provider.contact_method !== "email") {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
+      ...engagementCompletedProviderEmail({
+        projectCategory: request.category,
+        providerName: provider.applicant_name,
+      }),
+      dedupeKey: `engagement_completed:provider:${engagement.id}`,
+      recipientRole: "provider",
+      related: {
+        related_project_engagement_id: engagement.id,
+        related_project_request_id: request.id,
+        related_provider_application_id: provider.id,
+        related_request_candidate_id: candidate.id,
+      },
+      templateKey: "engagement_completed_provider",
+      to: provider.contact_value,
+    });
+  } catch {
+    // Email notification failures must not block successful workflow updates.
+  }
+}
+
+export async function sendEngagementDisputedAdminNotification(
+  input: EngagementNotificationInput,
+) {
+  try {
+    const adminEmail = getAdminNotificationEmail();
+
+    if (!adminEmail) {
+      return;
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data: engagement, error: engagementError } = await supabase
+      .from("project_engagements")
+      .select("id, request_candidate_id")
+      .eq("id", input.engagementId)
+      .maybeSingle();
+
+    if (engagementError || !engagement) {
+      return;
+    }
+
+    const { data: candidate, error: candidateError } = await supabase
+      .from("request_candidates")
+      .select("id, project_request_id, provider_application_id")
+      .eq("id", engagement.request_candidate_id)
+      .maybeSingle();
+
+    if (candidateError || !candidate) {
+      return;
+    }
+
+    const { data: request, error: requestError } = await supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle();
+
+    if (requestError || !request) {
+      return;
+    }
+
+    await enqueueAndSendEmail(supabase, {
+      ...engagementDisputedAdminEmail({
+        adminUrl: adminRequestUrl(request.id),
+        engagementId: engagement.id,
+        projectCategory: request.category,
+        requestId: request.id,
+      }),
+      dedupeKey: `engagement_disputed:admin:${engagement.id}`,
+      recipientRole: "admin",
+      related: {
+        related_project_engagement_id: engagement.id,
+        related_project_request_id: request.id,
+        ...(candidate.provider_application_id
+          ? { related_provider_application_id: candidate.provider_application_id }
+          : {}),
+        related_request_candidate_id: candidate.id,
+      },
+      templateKey: "engagement_disputed_admin",
+      to: adminEmail,
     });
   } catch {
     // Email notification failures must not block successful workflow updates.

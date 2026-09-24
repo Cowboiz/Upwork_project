@@ -293,6 +293,27 @@ export async function buildEngagementProviderUrl(
   return url.toString();
 }
 
+export async function buildEngagementStudentUrl(
+  engagementId: string,
+  supabase: Supabase = createSupabaseAdminClient(),
+) {
+  const tokenRow = await ensureEngagementAccessToken(
+    engagementId,
+    "student",
+    supabase,
+  );
+
+  if (!tokenRow || !tokenIsCurrentlyUsable(tokenRow)) {
+    return null;
+  }
+
+  const url = new URL("/engagement/status", getAppBaseUrl());
+
+  url.searchParams.set("token", buildEngagementAccessBearerToken(tokenRow));
+
+  return url.toString();
+}
+
 export async function buildExistingEngagementProviderUrl(
   engagementId: string,
   supabase: Supabase = createSupabaseAdminClient(),
@@ -308,6 +329,27 @@ export async function buildExistingEngagementProviderUrl(
   }
 
   const url = new URL("/engagement/provider", getAppBaseUrl());
+
+  url.searchParams.set("token", buildEngagementAccessBearerToken(tokenRow));
+
+  return url.toString();
+}
+
+export async function buildExistingEngagementStudentUrl(
+  engagementId: string,
+  supabase: Supabase = createSupabaseAdminClient(),
+) {
+  const tokenRow = await loadTokenRowByEngagementAndAudience(
+    supabase,
+    engagementId,
+    "student",
+  );
+
+  if (!tokenRow || !tokenIsCurrentlyUsable(tokenRow)) {
+    return null;
+  }
+
+  const url = new URL("/engagement/status", getAppBaseUrl());
 
   url.searchParams.set("token", buildEngagementAccessBearerToken(tokenRow));
 
@@ -355,6 +397,65 @@ export async function loadProviderEngagementDelivery(token: string | undefined) 
     verified.supabase
       .from("provider_applications")
       .select("id, status")
+      .eq("id", candidate.provider_application_id)
+      .maybeSingle(),
+  ]);
+
+  if (requestError || providerError || !request || !provider) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  return {
+    candidate,
+    engagement,
+    ok: true as const,
+    provider,
+    request,
+    tokenId: verified.tokenId,
+  };
+}
+
+export async function loadStudentEngagementStatus(token: string | undefined) {
+  const verified = await verifyEngagementAccessBearerToken(token, "student");
+
+  if (!verified.ok) {
+    return verified;
+  }
+
+  const { data: engagement, error: engagementError } = await verified.supabase
+    .from("project_engagements")
+    .select(
+      "id, request_candidate_id, agreed_amount, currency, agreed_deadline, status, submitted_at, completed_at, deliverable_url, deliverable_summary, dispute_notes",
+    )
+    .eq("id", verified.tokenRow.project_engagement_id)
+    .maybeSingle();
+
+  if (engagementError || !engagement) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const { data: candidate, error: candidateError } = await verified.supabase
+    .from("request_candidates")
+    .select("id, project_request_id, provider_application_id")
+    .eq("id", engagement.request_candidate_id)
+    .maybeSingle();
+
+  if (candidateError || !candidate?.provider_application_id) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const [
+    { data: request, error: requestError },
+    { data: provider, error: providerError },
+  ] = await Promise.all([
+    verified.supabase
+      .from("project_requests")
+      .select("id, category")
+      .eq("id", candidate.project_request_id)
+      .maybeSingle(),
+    verified.supabase
+      .from("provider_applications")
+      .select("id, applicant_name")
       .eq("id", candidate.provider_application_id)
       .maybeSingle(),
   ]);
