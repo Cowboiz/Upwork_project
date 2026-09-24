@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
+import { sendEngagementCreatedProviderNotification } from "@/lib/email/outbox";
 
 const engagementStatuses = [
   "agreed",
@@ -219,13 +220,19 @@ export async function createEngagement(formData: FormData) {
 
   const { request_id: requestId, candidate_id: candidateId } = parsed.data;
   const { supabase } = await requireAdmin();
-  const { error } = await supabase.rpc("create_project_engagement", {
+  const { data: engagementId, error } = await supabase.rpc("create_project_engagement", {
     p_candidate_id: candidateId,
     p_request_id: requestId,
   });
 
   if (error) {
     redirectWithError(requestId, friendlyCreateEngagementError(error.message));
+  }
+
+  if (engagementId) {
+    await sendEngagementCreatedProviderNotification({
+      engagementId,
+    });
   }
 
   revalidateRequestPaths(requestId);
