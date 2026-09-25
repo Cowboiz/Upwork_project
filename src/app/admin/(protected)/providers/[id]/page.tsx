@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import { ActivityTimeline } from "../../activity-timeline";
 import { updateInternalNotes, updateProviderStatus } from "./actions";
 
 function formatDate(value: string | null) {
@@ -99,6 +100,19 @@ export default async function AdminProviderDetailPage({
     .maybeSingle();
 
   if (error || !provider) {
+    notFound();
+  }
+
+  const { data: workflowEvents, error: workflowEventsError } = await supabase
+    .from("workflow_events")
+    .select(
+      "id, actor_user_id, event_name, metadata, occurred_at, project_request_id, request_candidate_id, project_engagement_id",
+    )
+    .eq("provider_application_id", provider.id)
+    .order("occurred_at", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (workflowEventsError) {
     notFound();
   }
 
@@ -213,6 +227,12 @@ export default async function AdminProviderDetailPage({
         </div>
 
         <aside className="grid content-start gap-6">
+          <ActivityTimeline
+            emptyMessage="No workflow events have been recorded for this provider yet."
+            events={workflowEvents}
+            showRequestLinks
+          />
+
           <section className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="text-xl font-bold text-slate-950">Internal notes</h3>
             <form action={updateInternalNotes} className="mt-4 grid gap-4">

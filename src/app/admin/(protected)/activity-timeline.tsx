@@ -1,9 +1,18 @@
+import Link from "next/link";
 import type { Database, Json } from "@/types/database.types";
 
+type WorkflowEventRow = Database["public"]["Tables"]["workflow_events"]["Row"];
+
 type WorkflowEvent = Pick<
-  Database["public"]["Tables"]["workflow_events"]["Row"],
+  WorkflowEventRow,
   "actor_user_id" | "event_name" | "id" | "metadata" | "occurred_at"
->;
+> &
+  Partial<
+    Pick<
+      WorkflowEventRow,
+      "project_request_id" | "request_candidate_id" | "project_engagement_id"
+    >
+  >;
 
 const eventLabels: Record<string, string> = {
   candidate_added: "Candidate added",
@@ -140,7 +149,15 @@ function eventLabel(eventName: string) {
   return eventLabels[eventName] ?? formatStatus(eventName);
 }
 
-export function ActivityTimeline({ events }: { events: WorkflowEvent[] }) {
+export function ActivityTimeline({
+  emptyMessage = "No workflow events have been recorded yet.",
+  events,
+  showRequestLinks = false,
+}: {
+  emptyMessage?: string;
+  events: WorkflowEvent[];
+  showRequestLinks?: boolean;
+}) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
       <h3 className="text-xl font-bold text-slate-950">Activity timeline</h3>
@@ -167,14 +184,20 @@ export function ActivityTimeline({ events }: { events: WorkflowEvent[] }) {
                 {detail ? (
                   <div className="mt-1 text-slate-700">{detail}</div>
                 ) : null}
+                {showRequestLinks && event.project_request_id ? (
+                  <Link
+                    className="mt-2 inline-block font-bold text-blue-700"
+                    href={`/admin/requests/${event.project_request_id}`}
+                  >
+                    View request
+                  </Link>
+                ) : null}
               </li>
             );
           })}
         </ol>
       ) : (
-        <p className="mt-4 text-sm text-slate-700">
-          No workflow events have been recorded for this request yet.
-        </p>
+        <p className="mt-4 text-sm text-slate-700">{emptyMessage}</p>
       )}
     </section>
   );

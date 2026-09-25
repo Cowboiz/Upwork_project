@@ -8,7 +8,7 @@ import {
   rejectRequest,
   updateInternalNotes,
 } from "./actions";
-import { ActivityTimeline } from "./activity-timeline";
+import { ActivityTimeline } from "../../activity-timeline";
 import { EngagementSection } from "./engagement-section";
 import { MatchingSection } from "./matching-section";
 
@@ -284,7 +284,10 @@ export default async function AdminRequestDetailPage({
         </div>
 
         <aside className="grid content-start gap-6">
-          <ActivityTimeline events={workflowEvents} />
+          <ActivityTimeline
+            emptyMessage="No workflow events have been recorded for this request yet."
+            events={workflowEvents}
+          />
 
           <section className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="text-xl font-bold text-slate-950">Internal notes</h3>
