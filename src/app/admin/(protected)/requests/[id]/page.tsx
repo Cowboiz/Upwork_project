@@ -8,6 +8,7 @@ import {
   rejectRequest,
   updateInternalNotes,
 } from "./actions";
+import { ActivityTimeline } from "./activity-timeline";
 import { EngagementSection } from "./engagement-section";
 import { MatchingSection } from "./matching-section";
 
@@ -99,6 +100,7 @@ export default async function AdminRequestDetailPage({
   const [
     { data: candidates, error: candidatesError },
     { data: providerSummaries, error: providersError },
+    { data: workflowEvents, error: workflowEventsError },
   ] = await Promise.all([
     supabase
       .from("request_candidates")
@@ -110,9 +112,15 @@ export default async function AdminRequestDetailPage({
       .from("provider_applications")
       .select("id, applicant_name, skills, availability, rate_expectations, status")
       .order("created_at", { ascending: false }),
+    supabase
+      .from("workflow_events")
+      .select("id, actor_user_id, event_name, metadata, occurred_at")
+      .eq("project_request_id", request.id)
+      .order("occurred_at", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
 
-  if (candidatesError || providersError) {
+  if (candidatesError || providersError || workflowEventsError) {
     notFound();
   }
 
@@ -276,6 +284,8 @@ export default async function AdminRequestDetailPage({
         </div>
 
         <aside className="grid content-start gap-6">
+          <ActivityTimeline events={workflowEvents} />
+
           <section className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="text-xl font-bold text-slate-950">Internal notes</h3>
             <form action={updateInternalNotes} className="mt-4 grid gap-4">
