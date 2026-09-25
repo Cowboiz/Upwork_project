@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const loginSchema = z.object({
@@ -13,6 +15,17 @@ function loginErrorRedirect(message: string): never {
   redirect(`/admin/login?error=${encodeURIComponent(message)}`);
 }
 
+async function enforceAdminLoginRateLimit() {
+  const clientIp = await getTrustedClientIp();
+
+  return checkRateLimit({
+    action: "admin_login_ip",
+    identifier: clientIp,
+    limit: 10,
+    windowSeconds: 900,
+  });
+}
+
 export async function loginAdmin(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -20,6 +33,18 @@ export async function loginAdmin(formData: FormData) {
     loginErrorRedirect(
       parsed.error.issues[0]?.message ?? "Check your login details.",
     );
+  }
+
+  let loginLimitAllowed = false;
+
+  try {
+    loginLimitAllowed = (await enforceAdminLoginRateLimit()).allowed;
+  } catch {
+    loginErrorRedirect("We could not process your login. Please try again.");
+  }
+
+  if (!loginLimitAllowed) {
+    loginErrorRedirect("Too many login attempts. Please try again later.");
   }
 
   const supabase = await createSupabaseServerClient();

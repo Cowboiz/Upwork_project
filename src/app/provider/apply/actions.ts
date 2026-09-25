@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { sendProviderApplicationSubmittedNotifications } from "@/lib/email/outbox";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   formDataToObject,
@@ -17,6 +19,45 @@ type ProviderApplicationNotificationRow = {
 
 function isUniqueViolation(error: { code?: string } | null) {
   return error?.code === "23505";
+}
+
+function contactRateLimitIdentifier({
+  contactMethod,
+  contactValue,
+}: {
+  contactMethod: string;
+  contactValue: string;
+}) {
+  return `${contactMethod}\n${contactValue.trim()}`;
+}
+
+async function enforceProviderApplicationRateLimit(input: {
+  contact_method: string;
+  contact_value: string;
+}) {
+  const clientIp = await getTrustedClientIp();
+  const ipLimit = await checkRateLimit({
+    action: "provider_application_submit_ip",
+    identifier: clientIp,
+    limit: 20,
+    windowSeconds: 3600,
+  });
+
+  if (!ipLimit.allowed) {
+    return false;
+  }
+
+  const contactLimit = await checkRateLimit({
+    action: "provider_application_submit_contact",
+    identifier: contactRateLimitIdentifier({
+      contactMethod: input.contact_method,
+      contactValue: input.contact_value,
+    }),
+    limit: 3,
+    windowSeconds: 3600,
+  });
+
+  return contactLimit.allowed;
 }
 
 async function getExistingProviderApplicationBySubmissionId(
@@ -49,6 +90,21 @@ export async function submitProviderApplication(formData: FormData) {
   const input = parsed.data;
   const confirmedAt = new Date().toISOString();
   const supabase = createSupabaseAdminClient();
+  let allowed = false;
+
+  try {
+    allowed = await enforceProviderApplicationRateLimit(input);
+  } catch {
+    redirect(
+      `/provider/apply?error=${encodeURIComponent("We could not submit your application. Please try again.")}`,
+    );
+  }
+
+  if (!allowed) {
+    redirect(
+      `/provider/apply?error=${encodeURIComponent("Too many submissions. Please try again later.")}`,
+    );
+  }
 
   const { data: providerApplication, error } = await supabase
     .from("provider_applications")
