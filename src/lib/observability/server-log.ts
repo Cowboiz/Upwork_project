@@ -60,3 +60,19 @@ export function logRequestError(
     );
   }
 }
+
+export function logDependencyReadinessFailed(dependency: "supabase") {
+  try {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "dependency_readiness_failed",
+        dependency,
+      }),
+    );
+  } catch {
+    console.error(
+      '{"level":"error","event":"dependency_readiness_failed","dependency":"supabase"}',
+    );
+  }
+}
