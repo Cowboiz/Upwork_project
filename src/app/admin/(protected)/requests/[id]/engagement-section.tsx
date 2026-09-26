@@ -42,6 +42,14 @@ type EngagementSummary = {
   updated_at: string;
 };
 
+type StructuredEngagementFeedback = {
+  created_at: string;
+  feedback_text: string | null;
+  id: string;
+  project_engagement_id: string;
+  rating: number;
+};
+
 const engagementNextStatuses = {
   agreed: ["in_progress", "cancelled"],
   cancelled: [],
@@ -99,11 +107,13 @@ function DetailItem({
 export function EngagementSection({
   acceptedCandidate,
   engagement,
+  engagementFeedback,
   provider,
   requestId,
 }: {
   acceptedCandidate?: AcceptedCandidateSummary;
   engagement?: EngagementSummary;
+  engagementFeedback?: StructuredEngagementFeedback | null;
   provider?: ProviderSummary;
   requestId: string;
 }) {
@@ -302,13 +312,38 @@ export function EngagementSection({
             )}
           </section>
 
+          {engagementFeedback ? (
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 className="font-bold text-slate-950">
+                Submitted student feedback
+              </h4>
+              <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                <DetailItem
+                  label="Rating"
+                  value={`${engagementFeedback.rating} / 5`}
+                />
+                <DetailItem
+                  label="Submitted"
+                  value={formatDate(engagementFeedback.created_at)}
+                />
+              </dl>
+              {engagementFeedback.feedback_text ? (
+                <p className="mt-4 whitespace-pre-wrap leading-7 text-slate-800">
+                  {engagementFeedback.feedback_text}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <h4 className="font-bold text-slate-950">Feedback and signals</h4>
             <form action={updateEngagementNotes} className="mt-4 grid gap-4">
               <input name="engagement_id" type="hidden" value={engagement.id} />
               <input name="request_id" type="hidden" value={requestId} />
               <label className="form-field">
-                <span className="form-label">Student feedback</span>
+                <span className="form-label">
+                  Student feedback (legacy admin note)
+                </span>
                 <textarea
                   className="form-input min-h-24"
                   defaultValue={engagement.student_feedback ?? ""}
