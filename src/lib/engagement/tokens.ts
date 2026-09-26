@@ -445,9 +445,15 @@ export async function loadStudentEngagementStatus(token: string | undefined) {
   }
 
   const [
+    { data: feedback, error: feedbackError },
     { data: request, error: requestError },
     { data: provider, error: providerError },
   ] = await Promise.all([
+    verified.supabase
+      .from("engagement_feedback")
+      .select("id, project_engagement_id, rating, feedback_text, created_at")
+      .eq("project_engagement_id", engagement.id)
+      .maybeSingle(),
     verified.supabase
       .from("project_requests")
       .select("id, category")
@@ -460,13 +466,14 @@ export async function loadStudentEngagementStatus(token: string | undefined) {
       .maybeSingle(),
   ]);
 
-  if (requestError || providerError || !request || !provider) {
+  if (feedbackError || requestError || providerError || !request || !provider) {
     return { ok: false as const, reason: "invalid" as const };
   }
 
   return {
     candidate,
     engagement,
+    feedback,
     ok: true as const,
     provider,
     request,

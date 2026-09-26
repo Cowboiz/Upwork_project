@@ -3,6 +3,7 @@ import { loadStudentEngagementStatus } from "@/lib/engagement/tokens";
 import {
   completeStudentEngagement,
   disputeStudentEngagement,
+  submitStudentEngagementFeedback,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,12 @@ function errorMessage(value: string | undefined) {
       return "This engagement already has different issue details recorded.";
     case "expired":
       return "This engagement link has expired.";
+    case "feedback_closed":
+      return "Feedback can only be submitted after this engagement is completed.";
+    case "feedback_conflict":
+      return "Feedback has already been submitted and cannot be changed.";
+    case "invalid_feedback":
+      return "Choose a rating from 1 to 5 and keep feedback within 5000 characters.";
     case "invalid_dispute":
       return "Add issue details using 5000 characters or fewer.";
     case "invalid":
@@ -67,6 +74,8 @@ function savedMessage(value: string | undefined) {
       return "Completion confirmed.";
     case "disputed":
       return "Your issue report has been recorded.";
+    case "feedback":
+      return "Thanks. Your feedback has been submitted.";
     default:
       return null;
   }
@@ -117,10 +126,11 @@ export default async function StudentEngagementStatusPage({
     );
   }
 
-  const { engagement, provider, request } = loaded;
+  const { engagement, feedback, provider, request } = loaded;
   const canRespond = engagement.status === "submitted";
   const isCompleted = engagement.status === "completed";
   const isDisputed = engagement.status === "disputed";
+  const canSubmitFeedback = isCompleted && feedback === null;
 
   return (
     <main className="page-shell py-8">
@@ -193,6 +203,74 @@ export default async function StudentEngagementStatusPage({
           <div className="notice-success mt-6">
             This engagement has been confirmed complete.
           </div>
+        ) : null}
+
+        {canSubmitFeedback ? (
+          <section className="mt-6 border-t border-slate-200 pt-6">
+            <h2 className="text-lg font-bold text-slate-950">Share feedback</h2>
+            <p className="mt-2 text-sm text-slate-700">
+              Your rating helps us review provider quality.
+            </p>
+            <form
+              action={submitStudentEngagementFeedback}
+              className="mt-4 grid gap-4"
+            >
+              <input name="token" type="hidden" value={params.token} />
+              <fieldset className="grid gap-3">
+                <legend className="form-label">Rating</legend>
+                <div className="flex flex-wrap gap-3">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <label
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900"
+                      key={rating}
+                    >
+                      <input
+                        className="h-4 w-4"
+                        name="rating"
+                        required
+                        type="radio"
+                        value={rating}
+                      />
+                      {rating}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="form-field">
+                <span className="form-label">Optional feedback</span>
+                <textarea
+                  className="form-input min-h-28"
+                  maxLength={5000}
+                  name="feedback_text"
+                  placeholder="What went well, or what could have been better?"
+                />
+              </label>
+              <button className="button-primary" type="submit">
+                Submit feedback
+              </button>
+            </form>
+          </section>
+        ) : null}
+
+        {isCompleted && feedback ? (
+          <section className="mt-6 border-t border-slate-200 pt-6">
+            <h2 className="text-lg font-bold text-slate-950">Your feedback</h2>
+            <p className="mt-3 text-slate-800">
+              Feedback has already been submitted.
+            </p>
+            <dl className="mt-4 grid gap-4">
+              <DetailItem label="Rating" value={`${feedback.rating} / 5`} />
+              <DetailItem
+                label="Submitted"
+                value={formatDate(feedback.created_at)}
+              />
+            </dl>
+            {feedback.feedback_text ? (
+              <p className="mt-4 whitespace-pre-wrap leading-7 text-slate-800">
+                {feedback.feedback_text}
+              </p>
+            ) : null}
+          </section>
         ) : null}
 
         {isDisputed ? (
