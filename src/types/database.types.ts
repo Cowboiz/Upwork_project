@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       contracts: {
@@ -288,6 +263,38 @@ export type Database = {
             foreignKeyName: "engagement_access_tokens_project_engagement_id_fkey"
             columns: ["project_engagement_id"]
             isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_feedback: {
+        Row: {
+          created_at: string
+          feedback_text: string | null
+          id: string
+          project_engagement_id: string
+          rating: number
+        }
+        Insert: {
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          project_engagement_id: string
+          rating: number
+        }
+        Update: {
+          created_at?: string
+          feedback_text?: string | null
+          id?: string
+          project_engagement_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_feedback_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: true
             referencedRelation: "project_engagements"
             referencedColumns: ["id"]
           },
@@ -1010,6 +1017,33 @@ export type Database = {
           },
         ]
       }
+      rate_limit_buckets: {
+        Row: {
+          action: string
+          created_at: string
+          hit_count: number
+          key_hash: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          hit_count: number
+          key_hash: string
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          hit_count?: number
+          key_hash?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       request_candidates: {
         Row: {
           agreed_deadline: string | null
@@ -1110,33 +1144,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      rate_limit_buckets: {
-        Row: {
-          action: string
-          created_at: string
-          hit_count: number
-          key_hash: string
-          updated_at: string
-          window_start: string
-        }
-        Insert: {
-          action: string
-          created_at?: string
-          hit_count: number
-          key_hash: string
-          updated_at?: string
-          window_start: string
-        }
-        Update: {
-          action?: string
-          created_at?: string
-          hit_count?: number
-          key_hash?: string
-          updated_at?: string
-          window_start?: string
-        }
-        Relationships: []
       }
       reviews: {
         Row: {
@@ -1376,6 +1383,10 @@ export type Database = {
         }
         Returns: string
       }
+      submit_engagement_feedback: {
+        Args: { p_feedback_text: string; p_rating: number; p_token_id: string }
+        Returns: string
+      }
       update_project_engagement_status: {
         Args: {
           p_engagement_id: string
@@ -1512,9 +1523,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
