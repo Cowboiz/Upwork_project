@@ -46,6 +46,15 @@ const disputeSchema = tokenSchema.extend({
     .max(5000, "Use 5000 characters or fewer for issue details."),
 });
 
+const feedbackSchema = tokenSchema.extend({
+  feedback_text: z.string().trim().max(5000).optional().default(""),
+  rating: z.coerce
+    .number()
+    .int("Choose a rating from 1 to 5.")
+    .min(1, "Choose a rating from 1 to 5.")
+    .max(5, "Choose a rating from 1 to 5."),
+});
+
 function formDataObject(formData: FormData) {
   return Object.fromEntries(formData.entries());
 }
@@ -85,6 +94,29 @@ function friendlyStudentEngagementError(message: string) {
 
   if (message.includes("dispute_conflict")) {
     return "conflict";
+  }
+
+  return "invalid";
+}
+
+function friendlyStudentFeedbackError(message: string) {
+  if (message.includes("token_expired")) {
+    return "expired";
+  }
+
+  if (
+    message.includes("feedback_rating_invalid") ||
+    message.includes("feedback_text_too_long")
+  ) {
+    return "invalid_feedback";
+  }
+
+  if (message.includes("engagement_not_completed")) {
+    return "feedback_closed";
+  }
+
+  if (message.includes("feedback_conflict")) {
+    return "feedback_conflict";
   }
 
   return "invalid";
@@ -161,4 +193,45 @@ export async function disputeStudentEngagement(formData: FormData) {
 
   revalidatePath("/engagement/status");
   redirectToStudentEngagement(parsed.data.token, { saved: "disputed" });
+}
+
+export async function submitStudentEngagementFeedback(formData: FormData) {
+  const parsed = feedbackSchema.safeParse(formDataObject(formData));
+
+  if (!parsed.success) {
+    const token = formData.get("token");
+
+    if (typeof token === "string" && token.trim()) {
+      redirectToStudentEngagement(token, { error: "invalid_feedback" });
+    }
+
+    redirectInvalid();
+  }
+
+  const verified = await verifyEngagementAccessBearerToken(
+    parsed.data.token,
+    "student",
+  );
+
+  if (!verified.ok) {
+    redirectToStudentEngagement(parsed.data.token, { error: verified.reason });
+  }
+
+  const { data, error } = await createSupabaseAdminClient().rpc(
+    "submit_engagement_feedback",
+    {
+      p_feedback_text: parsed.data.feedback_text,
+      p_rating: parsed.data.rating,
+      p_token_id: verified.tokenId,
+    },
+  );
+
+  if (error || data !== "submitted") {
+    redirectToStudentEngagement(parsed.data.token, {
+      error: error ? friendlyStudentFeedbackError(error.message) : "invalid",
+    });
+  }
+
+  revalidatePath("/engagement/status");
+  redirectToStudentEngagement(parsed.data.token, { saved: "feedback" });
 }

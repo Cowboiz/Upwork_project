@@ -20,6 +20,7 @@ const eventLabels: Record<string, string> = {
   engagement_completed: "Engagement completed",
   engagement_created: "Engagement created",
   engagement_disputed: "Engagement disputed",
+  engagement_feedback_submitted: "Student feedback submitted",
   engagement_started: "Engagement started",
   engagement_submitted: "Engagement submitted",
   payment_status_changed: "Payment status changed",
@@ -106,6 +107,13 @@ function requestQualifiedDetail(metadata: Json) {
   return `${formatStatus(status)}, integrity ${formatStatus(integrity)}`;
 }
 
+function ratingDetail(metadata: Json) {
+  const object = metadataObject(metadata);
+  const rating = metadataNumber(object?.rating);
+
+  return rating === null ? null : `Rating ${rating} / 5`;
+}
+
 function eventDetail(event: WorkflowEvent) {
   switch (event.event_name) {
     case "request_integrity_cleared":
@@ -128,6 +136,8 @@ function eventDetail(event: WorkflowEvent) {
     }
     case "request_qualified":
       return requestQualifiedDetail(event.metadata);
+    case "engagement_feedback_submitted":
+      return ratingDetail(event.metadata);
     case "shortlist_presented":
     case "student_decision_accepted": {
       const transition = transitionDetail(event.metadata);

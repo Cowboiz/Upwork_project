@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ActivityTimeline } from "../../activity-timeline";
 import { updateInternalNotes, updateProviderStatus } from "./actions";
+import type { Database } from "@/types/database.types";
+
+type EngagementFeedbackRow =
+  Database["public"]["Tables"]["engagement_feedback"]["Row"];
+
+type ProviderFeedbackItem = EngagementFeedbackRow & {
+  project_request_id: string | null;
+};
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -93,6 +102,7 @@ export default async function AdminProviderDetailPage({
 }: AdminProviderDetailPageProps) {
   const [{ id }, notices] = await Promise.all([params, searchParams]);
   const { supabase } = await requireAdmin();
+  const adminSupabase = createSupabaseAdminClient();
   const { data: provider, error } = await supabase
     .from("provider_applications")
     .select("*")
@@ -115,6 +125,42 @@ export default async function AdminProviderDetailPage({
   if (workflowEventsError) {
     notFound();
   }
+
+  const requestIdByEngagementId = new Map<string, string | null>();
+
+  for (const event of workflowEvents) {
+    if (
+      event.event_name === "engagement_feedback_submitted" &&
+      event.project_engagement_id
+    ) {
+      requestIdByEngagementId.set(
+        event.project_engagement_id,
+        event.project_request_id,
+      );
+    }
+  }
+
+  const engagementIds = [...requestIdByEngagementId.keys()];
+  const { data: engagementFeedbackRows, error: engagementFeedbackError } =
+    engagementIds.length > 0
+      ? await adminSupabase
+          .from("engagement_feedback")
+          .select("id, project_engagement_id, rating, feedback_text, created_at")
+          .in("project_engagement_id", engagementIds)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null };
+
+  if (engagementFeedbackError) {
+    notFound();
+  }
+
+  const engagementFeedback: ProviderFeedbackItem[] = engagementFeedbackRows.map(
+    (feedback) => ({
+      ...feedback,
+      project_request_id:
+        requestIdByEngagementId.get(feedback.project_engagement_id) ?? null,
+    }),
+  );
 
   return (
     <section className="grid gap-6">
@@ -223,6 +269,50 @@ export default async function AdminProviderDetailPage({
             <div className="mt-4 leading-7 text-slate-800">
               <LinkList values={provider.portfolio_urls} />
             </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-5">
+            <h3 className="text-xl font-bold text-slate-950">
+              Student feedback
+            </h3>
+            {engagementFeedback.length > 0 ? (
+              <div className="mt-4 grid gap-4">
+                {engagementFeedback.map((feedback) => (
+                  <article
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                    key={feedback.id}
+                  >
+                    <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                      <DetailItem
+                        label="Rating"
+                        value={`${feedback.rating} / 5`}
+                      />
+                      <DetailItem
+                        label="Submitted"
+                        value={formatDate(feedback.created_at)}
+                      />
+                    </dl>
+                    {feedback.feedback_text ? (
+                      <p className="mt-4 whitespace-pre-wrap leading-7 text-slate-800">
+                        {feedback.feedback_text}
+                      </p>
+                    ) : null}
+                    {feedback.project_request_id ? (
+                      <Link
+                        className="mt-4 inline-block font-bold text-blue-700"
+                        href={`/admin/requests/${feedback.project_request_id}`}
+                      >
+                        View request
+                      </Link>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-slate-700">
+                No student feedback has been submitted for this provider yet.
+              </p>
+            )}
           </section>
         </div>
 
