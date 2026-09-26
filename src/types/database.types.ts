@@ -1111,6 +1111,33 @@ export type Database = {
           },
         ]
       }
+      rate_limit_buckets: {
+        Row: {
+          action: string
+          created_at: string
+          hit_count: number
+          key_hash: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          hit_count: number
+          key_hash: string
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          hit_count?: number
+          key_hash?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       reviews: {
         Row: {
           comment: string | null
@@ -1296,6 +1323,19 @@ export type Database = {
       accept_request_candidate: {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined
+      }
+      check_rate_limit: {
+        Args: {
+          p_action: string
+          p_key_hash: string
+          p_limit: number
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after_seconds: number
+        }[]
       }
       complete_engagement: { Args: { p_token_id: string }; Returns: string }
       create_project_engagement: {

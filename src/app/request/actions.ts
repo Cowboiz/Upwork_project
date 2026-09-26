@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { sendProjectRequestSubmittedNotifications } from "@/lib/email/outbox";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formDataToObject, projectRequestSchema } from "@/lib/stage1/validation";
 
@@ -14,6 +16,45 @@ type ProjectRequestNotificationRow = {
 
 function isUniqueViolation(error: { code?: string } | null) {
   return error?.code === "23505";
+}
+
+function contactRateLimitIdentifier({
+  contactMethod,
+  contactValue,
+}: {
+  contactMethod: string;
+  contactValue: string;
+}) {
+  return `${contactMethod}\n${contactValue.trim()}`;
+}
+
+async function enforceProjectRequestRateLimit(input: {
+  contact_method: string;
+  contact_value: string;
+}) {
+  const clientIp = await getTrustedClientIp();
+  const ipLimit = await checkRateLimit({
+    action: "project_request_submit_ip",
+    identifier: clientIp,
+    limit: 30,
+    windowSeconds: 3600,
+  });
+
+  if (!ipLimit.allowed) {
+    return false;
+  }
+
+  const contactLimit = await checkRateLimit({
+    action: "project_request_submit_contact",
+    identifier: contactRateLimitIdentifier({
+      contactMethod: input.contact_method,
+      contactValue: input.contact_value,
+    }),
+    limit: 5,
+    windowSeconds: 3600,
+  });
+
+  return contactLimit.allowed;
 }
 
 async function getExistingRequestBySubmissionId(
@@ -45,6 +86,21 @@ export async function submitProjectRequest(formData: FormData) {
 
   const input = parsed.data;
   const supabase = createSupabaseAdminClient();
+  let allowed = false;
+
+  try {
+    allowed = await enforceProjectRequestRateLimit(input);
+  } catch {
+    redirect(
+      `/request?error=${encodeURIComponent("We could not submit your request. Please try again.")}`,
+    );
+  }
+
+  if (!allowed) {
+    redirect(
+      `/request?error=${encodeURIComponent("Too many submissions. Please try again later.")}`,
+    );
+  }
 
   const { data: request, error } = await supabase
     .from("project_requests")
