@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   markIntegrityClear,
   markNeedsClarification,
@@ -87,6 +88,7 @@ export default async function AdminRequestDetailPage({
 }: AdminRequestDetailPageProps) {
   const [{ id }, notices] = await Promise.all([params, searchParams]);
   const { supabase } = await requireAdmin();
+  const adminSupabase = createSupabaseAdminClient();
   const { data: request, error } = await supabase
     .from("project_requests")
     .select("*")
@@ -142,6 +144,19 @@ export default async function AdminRequestDetailPage({
     : { data: null, error: null };
 
   if (engagementError) {
+    notFound();
+  }
+
+  const { data: engagementFeedback, error: engagementFeedbackError } =
+    engagement
+      ? await adminSupabase
+          .from("engagement_feedback")
+          .select("id, project_engagement_id, rating, feedback_text, created_at")
+          .eq("project_engagement_id", engagement.id)
+          .maybeSingle()
+      : { data: null, error: null };
+
+  if (engagementFeedbackError) {
     notFound();
   }
 
@@ -274,6 +289,7 @@ export default async function AdminRequestDetailPage({
           <EngagementSection
             acceptedCandidate={acceptedCandidate}
             engagement={engagement ?? undefined}
+            engagementFeedback={engagementFeedback}
             provider={
               acceptedCandidate?.provider_application_id
                 ? providerById.get(acceptedCandidate.provider_application_id)
