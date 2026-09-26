@@ -44,6 +44,15 @@ function requireEnv(name: string) {
 }
 
 function getAppBaseUrl() {
+  if (process.env.VERCEL_ENV === "preview") {
+    const previewUrl =
+      optionalEnv("VERCEL_BRANCH_URL") ?? optionalEnv("VERCEL_URL");
+
+    if (previewUrl) {
+      return `https://${previewUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+    }
+  }
+
   return requireEnv("APP_BASE_URL").replace(/\/+$/, "");
 }
 
