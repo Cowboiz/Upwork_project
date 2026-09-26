@@ -5,6 +5,19 @@ test.describe("public smoke routes", () => {
     await context.close();
   });
 
+  test("health endpoint reports liveness without dependency checks", async ({
+    request,
+  }) => {
+    const response = await request.get("/api/health");
+
+    await expect(response).toBeOK();
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    await expect(response.json()).resolves.toEqual({
+      status: "ok",
+      service: "projectmatch",
+    });
+  });
+
   test("home page renders ProjectMatch and public entry points", async ({
     page,
   }) => {
