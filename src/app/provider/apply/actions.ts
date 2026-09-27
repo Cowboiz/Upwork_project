@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { sendProviderApplicationSubmittedNotifications } from "@/lib/email/outbox";
+import { logIntakeOperationFailed } from "@/lib/observability/server-log";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -95,6 +96,10 @@ export async function submitProviderApplication(formData: FormData) {
   try {
     allowed = await enforceProviderApplicationRateLimit(input);
   } catch {
+    logIntakeOperationFailed({
+      intake: "provider_application",
+      stage: "rate_limit",
+    });
     redirect(
       `/provider/apply?error=${encodeURIComponent("We could not submit your application. Please try again.")}`,
     );
@@ -144,6 +149,16 @@ export async function submitProviderApplication(formData: FormData) {
 
         redirect("/provider/apply?submitted=1");
       }
+
+      logIntakeOperationFailed({
+        intake: "provider_application",
+        stage: "idempotency_lookup",
+      });
+    } else {
+      logIntakeOperationFailed({
+        intake: "provider_application",
+        stage: "insert",
+      });
     }
 
     redirect(
