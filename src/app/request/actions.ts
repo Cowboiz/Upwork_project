@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { sendProjectRequestSubmittedNotifications } from "@/lib/email/outbox";
+import { logIntakeOperationFailed } from "@/lib/observability/server-log";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -91,6 +92,10 @@ export async function submitProjectRequest(formData: FormData) {
   try {
     allowed = await enforceProjectRequestRateLimit(input);
   } catch {
+    logIntakeOperationFailed({
+      intake: "project_request",
+      stage: "rate_limit",
+    });
     redirect(
       `/request?error=${encodeURIComponent("We could not submit your request. Please try again.")}`,
     );
@@ -143,6 +148,16 @@ export async function submitProjectRequest(formData: FormData) {
 
         redirect("/request?submitted=1");
       }
+
+      logIntakeOperationFailed({
+        intake: "project_request",
+        stage: "idempotency_lookup",
+      });
+    } else {
+      logIntakeOperationFailed({
+        intake: "project_request",
+        stage: "insert",
+      });
     }
 
     redirect(

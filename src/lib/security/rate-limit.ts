@@ -1,6 +1,11 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import {
+  logRateLimitBlocked,
+  logRateLimitCheckFailed,
+  type RateLimitAction,
+} from "@/lib/observability/server-log";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const MAX_ACTION_LENGTH = 100;
@@ -9,7 +14,7 @@ const MAX_LIMIT = 10000;
 const MAX_WINDOW_SECONDS = 86400;
 
 export type RateLimitInput = {
-  action: string;
+  action: RateLimitAction;
   identifier: string;
   limit: number;
   windowSeconds: number;
@@ -104,7 +109,7 @@ export async function checkRateLimit({
     action,
     "action",
     MAX_ACTION_LENGTH,
-  );
+  ) as RateLimitAction;
   const normalizedIdentifier = normalizeNonEmpty(
     identifier,
     "identifier",
@@ -140,13 +145,22 @@ export async function checkRateLimit({
   );
 
   if (error) {
+    logRateLimitCheckFailed(normalizedAction);
     throw new RateLimitCheckError();
   }
 
   const result = data?.[0];
 
   if (!result) {
+    logRateLimitCheckFailed(normalizedAction);
     throw new RateLimitCheckError();
+  }
+
+  if (!result.allowed) {
+    logRateLimitBlocked({
+      action: normalizedAction,
+      retryAfterSeconds: result.retry_after_seconds,
+    });
   }
 
   return {

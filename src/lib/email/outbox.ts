@@ -16,6 +16,12 @@ import {
   buildExistingStudentDecisionUrl,
   buildStudentDecisionUrl,
 } from "@/lib/student-decision/tokens";
+import {
+  logEmailDeliveryFailed,
+  logEmailPipelineFailed,
+  type EmailRecipientRole,
+  type EmailTemplateKey,
+} from "@/lib/observability/server-log";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getAdminNotificationEmail,
@@ -56,7 +62,7 @@ type RetryEmailOutboxRow = Pick<
   | "status"
   | "template_key"
 >;
-type RecipientRole = "admin" | "provider" | "student";
+type RecipientRole = EmailRecipientRole;
 
 export type RetryFailedEmailResult = {
   message: string;
@@ -82,7 +88,7 @@ type OutboxEmailInput = EmailMessage & {
   dedupeKey: string;
   recipientRole: RecipientRole;
   related: RelatedRecords;
-  templateKey: string;
+  templateKey: EmailTemplateKey;
 };
 
 type ProjectRequestNotificationInput = {
@@ -168,6 +174,35 @@ function sanitizeEmailError(error: unknown) {
 
 function isUniqueViolation(error: { code?: string } | null) {
   return error?.code === "23505";
+}
+
+function knownEmailTemplateKey(templateKey: string): EmailTemplateKey {
+  switch (templateKey) {
+    case "engagement_completed_provider":
+    case "engagement_created_provider":
+    case "engagement_disputed_admin":
+    case "engagement_submitted_student":
+    case "provider_application_submitted_admin_alert":
+    case "provider_application_submitted_provider_confirmation":
+    case "provider_contacted_provider":
+    case "request_submitted_admin_alert":
+    case "request_submitted_student_confirmation":
+    case "shortlist_presented_student":
+      return templateKey;
+    default:
+      return "unknown";
+  }
+}
+
+function knownRecipientRole(recipientRole: string): EmailRecipientRole {
+  switch (recipientRole) {
+    case "admin":
+    case "provider":
+    case "student":
+      return recipientRole;
+    default:
+      return "unknown";
+  }
 }
 
 async function loadOutboxRow(supabase: Supabase, dedupeKey: string) {
@@ -850,6 +885,13 @@ async function finalizeRetryFailure(
   const failedRow = await markRetryFailed(supabase, row, error);
 
   if (failedRow) {
+    logEmailDeliveryFailed({
+      attemptCount: failedRow.attempt_count,
+      phase: "retry",
+      recipientRole: knownRecipientRole(failedRow.recipient_role),
+      templateKey: knownEmailTemplateKey(failedRow.template_key),
+    });
+
     return {
       message: "Email retry failed. Check the sanitized error in the outbox row.",
       status: "failed",
@@ -947,7 +989,16 @@ async function enqueueAndSendEmail(
 ) {
   const row = await enqueueOutboxRow(supabase, input);
 
-  if (!row || row.status === "sent" || !isEmailEnabled()) {
+  if (!row) {
+    logEmailDeliveryFailed({
+      phase: "initial",
+      recipientRole: input.recipientRole,
+      templateKey: input.templateKey,
+    });
+    return;
+  }
+
+  if (row.status === "sent" || !isEmailEnabled()) {
     return;
   }
 
@@ -971,6 +1022,12 @@ async function enqueueAndSendEmail(
     await markSent(supabase, claimedRow.id, result.providerMessageId);
   } catch (error) {
     await markFailed(supabase, claimedRow.id, error);
+    logEmailDeliveryFailed({
+      attemptCount: claimedRow.attempt_count,
+      phase: "initial",
+      recipientRole: input.recipientRole,
+      templateKey: input.templateKey,
+    });
   }
 }
 
@@ -1005,6 +1062,7 @@ export async function sendProjectRequestSubmittedNotifications(
       });
     }
   } catch {
+    logEmailPipelineFailed("project_request_submitted");
     // Email notification failures must not block successful intake.
   }
 }
@@ -1040,6 +1098,7 @@ export async function sendProviderApplicationSubmittedNotifications(
       });
     }
   } catch {
+    logEmailPipelineFailed("provider_application_submitted");
     // Email notification failures must not block successful intake.
   }
 }
@@ -1086,6 +1145,7 @@ export async function sendProviderContactedNotification(
       to: input.contactValue,
     });
   } catch {
+    logEmailPipelineFailed("provider_contacted");
     // Email notification failures must not block successful workflow updates.
   }
 }
@@ -1128,6 +1188,7 @@ export async function sendShortlistPresentedNotification(
       to: input.contactValue,
     });
   } catch {
+    logEmailPipelineFailed("shortlist_presented");
     // Email notification failures must not block successful workflow updates.
   }
 }
@@ -1214,6 +1275,7 @@ export async function sendEngagementCreatedProviderNotification(
       to: provider.contact_value,
     });
   } catch {
+    logEmailPipelineFailed("engagement_created_provider");
     // Email notification failures must not block successful workflow updates.
   }
 }
@@ -1296,6 +1358,7 @@ export async function sendEngagementSubmittedStudentNotification(
       to: request.contact_value,
     });
   } catch {
+    logEmailPipelineFailed("engagement_submitted_student");
     // Email notification failures must not block successful workflow updates.
   }
 }
@@ -1366,6 +1429,7 @@ export async function sendEngagementCompletedProviderNotification(
       to: provider.contact_value,
     });
   } catch {
+    logEmailPipelineFailed("engagement_completed_provider");
     // Email notification failures must not block successful workflow updates.
   }
 }
@@ -1432,6 +1496,7 @@ export async function sendEngagementDisputedAdminNotification(
       to: adminEmail,
     });
   } catch {
+    logEmailPipelineFailed("engagement_disputed_admin");
     // Email notification failures must not block successful workflow updates.
   }
 }
