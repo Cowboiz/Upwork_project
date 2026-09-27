@@ -258,3 +258,6 @@ After future releases:
 3. Check `GET /api/health` returns `200`.
 4. Check `GET /api/readiness` returns `200`.
 5. Review recent Vercel Runtime Logs for unexpected `error` events.
+
+For the production release readiness checklist, see
+`docs/release-readiness.md`.
