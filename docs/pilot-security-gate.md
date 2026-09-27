@@ -1,15 +1,16 @@
 # ProjectMatch Pilot Security Launch Gate
 
-> Phase: 5.1A
-> Branch: `feature/phase5-pilot-security`
-> Audited base SHA: `8af2e63142b441b2c6c938e99d47eeb343776cd0`
+> Phase: 5.1A.1
+> Branch: `feature/phase5-free-plan-controls`
+> Audited base SHA: `043a2b9a2fc2217c5911cd7fbc1fe2030db91250`
 > DEV Supabase: `vuvsrpzbdrnvsctgxebb`
 > Pilot Supabase: `aghkijjnvphvarnnzwne`
 
 This document records the security-advisor triage and launch gate for moving the
-current Phase 4/early Phase 5 codebase toward the Pilot Supabase environment. It
-is a documentation gate only unless a later verification step finds database
-authorization drift.
+current Phase 4/early Phase 5 codebase toward the Pilot Supabase environment.
+It also records the accepted Supabase Free-plan security posture for the
+Controlled Pilot. It is a documentation gate only unless a later verification
+step finds database authorization drift.
 
 ## A. Pilot Schema Parity
 
@@ -114,17 +115,46 @@ Launch gate:
 
 ### Auth Leaked-Password Protection
 
-Pilot advisor reported leaked-password protection disabled in Supabase Auth.
+Pilot advisor reported leaked-password protection disabled in Supabase Auth. The
+Controlled Pilot intentionally remains on the Supabase Free plan, and native
+"Prevent use of leaked passwords" protection is available only on Pro and
+above. The advisor is expected to continue reporting
+`auth_leaked_password_protection` while Pilot stays on Free.
 
-Classification: launch configuration action.
+Classification: accepted platform limitation for Controlled Pilot.
 
-Required operator action before Pilot launch:
+This is not an unresolved repository security defect and is not an automatic
+launch blocker while the project remains in a narrow controlled-pilot posture.
+It becomes a recommended native platform control when the project moves to
+Supabase Pro.
 
-- Enable Supabase Auth leaked-password protection for the Pilot project.
-- Confirm admin/operator accounts use strong credentials.
-- Prefer MFA for admin/operator accounts where available.
+Required compensating controls before Pilot launch:
 
-This is a Supabase project configuration setting, not a repository migration.
+- Supabase Auth minimum password length must be at least 12 characters.
+- Configure the strongest available Supabase password character requirements.
+- Admin/operator passwords must be unique, randomly generated, and not reused
+  from any other service.
+- Admin/operators must use a password manager.
+- Public Supabase Auth signup should be disabled when not required for the
+  controlled pilot.
+- Existing admin login rate limiting remains required.
+- Only known admin/operator accounts should exist.
+- Current RLS and function ACL protections remain required.
+- No service-role credential may be exposed client-side.
+
+Do not claim leaked-password protection is enabled unless it has been
+independently verified in the Supabase dashboard or management API.
+
+Custom HaveIBeenPwned password checking is intentionally deferred. The current
+password-authenticated surface is narrow, custom auth-security code would add
+maintenance risk, and strong password policy plus restricted account creation
+plus rate limiting are sufficient compensating controls for the Controlled Pilot
+posture. Reconsider this if the project remains on Free while password
+authentication expands.
+
+MFA is a future hardening option, not a currently enforced control. Supabase MFA
+requires enrollment, challenge handling, and enforcement in the application; do
+not simply enable a dashboard option and claim admin MFA protection.
 
 ### RLS Enabled With No Policies
 
@@ -168,16 +198,50 @@ authenticated browser sessions.
 
 Before launch, verify in the Pilot Supabase dashboard:
 
-- Leaked-password protection is enabled.
+- Minimum password length is at least 12 characters.
+- The strongest available password character requirements are configured.
 - Admin/operator users are known and intentional.
-- Admin/operator users use strong passwords.
-- MFA is enabled for admin/operator users where available.
+- Admin/operator passwords are unique, randomly generated, and stored in a
+  password manager.
 - Public sign-up behavior matches the intended Pilot posture.
+- Native leaked-password protection is not required on Free, but should be
+  enabled if the project upgrades to Pro.
 - No service-role key is exposed to browser or GitHub browser-smoke CI.
 
 Do not record secret values in this repository.
 
-## F. Pilot Launch Stop Conditions
+## F. Free-Plan Operations Notes
+
+Controlled Pilot may run on Supabase Free with documented compensating controls.
+Before storing irreplaceable or materially costly data, review backup strategy,
+availability expectations, and project auto-pause characteristics.
+
+Free-plan limitations to keep visible during Pilot:
+
+- Do not rely on native Pro leaked-password protection.
+- Review database backup strategy before storing irreplaceable data.
+- Review project availability and auto-pause characteristics before moving from
+  controlled pilot to regular production usage.
+
+Do not implement backup automation as part of this gate.
+
+## G. When to Upgrade to Supabase Pro
+
+Supabase Pro is not currently required for the Controlled Pilot. Upgrade should
+be revisited when one or more of these triggers appears:
+
+- Pilot becomes regular production usage.
+- Losing database data would become materially costly.
+- Automatic backups are operationally required.
+- Project auto-pause is no longer acceptable.
+- More admin/operator accounts are introduced.
+- The password-authenticated user population grows.
+- Longer operational log retention is required.
+- Free-plan limits become operationally relevant.
+
+Native leaked-password protection should be enabled after a Pro upgrade.
+
+## H. Pilot Launch Stop Conditions
 
 Do not launch Pilot if any of these are true:
 
@@ -192,11 +256,15 @@ Do not launch Pilot if any of these are true:
 - Trigger-only workflow helper functions are directly executable by app roles.
 - Public token RPCs are executable by `anon` or `authenticated` instead of only
   by service-role server code.
-- Supabase Auth leaked-password protection remains disabled.
+- Weak minimum password policy is configured.
+- Public signup is unintentionally open.
+- Admin accounts use shared, reused, or weak passwords.
+- Admin-login rate limiting is removed or broken.
+- Anonymous or authenticated access expands unexpectedly.
 - Production/Pilot environment variables are missing required server secrets.
 - Quality Gate or browser smoke fails on the release candidate.
 
-## G. Verification Procedure
+## I. Verification Procedure
 
 Read-only migration parity:
 
