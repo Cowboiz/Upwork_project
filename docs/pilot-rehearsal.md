@@ -25,21 +25,35 @@ Pilot preview deployment inspected:
 
 ## Result
 
-Status: BLOCKED before creating rehearsal records.
+Status: BLOCKED.
 
 The original 2026-09-27 blocked result treated unauthenticated `302 Found`
 responses as health/readiness failures. That interpretation is obsolete:
 deployment protection can legitimately return Vercel SSO redirects to ordinary
 unauthenticated requests.
 
-The current 2026-09-30 continuation used authenticated Vercel access against
-the feature preview deployment. Application health passed, but readiness failed
-because the Supabase dependency reported unavailable. Per the rehearsal safety
-rules, the synthetic lifecycle stopped before submitting the first project
-request or provider application.
+The 2026-09-30 continuation used authenticated Vercel access against the
+feature preview deployment. Application health passed. A later controlled Pilot
+run reached the matching and student-decision lifecycle and exposed a
+match-state blocker.
 
-No rehearsal project request, provider application, candidate, engagement,
-feedback, token, workflow event, or email outbox row was created.
+Confirmed Pilot defect:
+
+- Request ID: `f53c31c8-7c72-4524-8a97-d5de652a1471`
+- Accepted candidate ID: `3a5c7d4f-59ce-4952-bb3c-5dcb5402fbe2`
+
+Observed invalid state:
+
+- The accepted candidate still exists.
+- The request regressed from `matched` to `reviewed`.
+- `integrity_review_status` remains `clear`.
+- Engagement creation fails because the request is no longer `matched`.
+
+Root cause confirmed in current `main`/`dev` code: admin review actions can
+mutate a matched request back to `reviewed` because
+`markReviewed`/`updateRequestReview` do not guard against post-match states.
+
+No engagement was created for the affected Pilot request.
 
 ## Precondition Checks
 
@@ -51,13 +65,13 @@ feedback, token, workflow event, or email outbox row was created.
 | Preview deployment | PASS | Deployment is `READY`, `preview`, and built from the feature branch SHA. |
 | Production untouched | PASS | No production deployment, env, schema, or data mutation was performed. |
 | Application health | PASS | Authenticated Vercel CLI request returned `{"status":"ok","service":"projectmatch"}`. |
-| Application readiness | FAIL | Authenticated Vercel CLI request returned `{"status":"not_ready","service":"projectmatch","dependencies":{"supabase":"unavailable"}}`. |
-| Pilot Supabase dependency | FAIL | Readiness reported Supabase unavailable. |
-| Controlled test contacts | NOT RUN | Stopped before creating data or triggering email. |
-| Admin login | NOT RUN | Stopped because readiness failed. |
-| Admin Ops | NOT RUN | Stopped because readiness failed. |
-| Password posture | NOT RECHECKED | Not rechecked in this run because readiness failed first. |
-| Public Auth signup posture | NOT RUN | Stopped because readiness failed. |
+| Application readiness | SUPERSEDED | An earlier run reported Supabase unavailable. The confirmed Phase 5.1B blocker is now the matched-request state regression below. |
+| Pilot Supabase dependency | SUPERSEDED | Earlier readiness issue is not the current confirmed blocker. |
+| Controlled test contacts | PASS | Controlled synthetic rehearsal data was used; no PII is documented here. |
+| Admin login | PASS | Rehearsal reached admin matching workflow. |
+| Admin Ops | NOT FINALIZED | Engagement creation did not complete because of the match-state blocker. |
+| Password posture | NOT RECHECKED | Not rechecked as part of this documentation update. |
+| Public Auth signup posture | NOT RUN | Not rechecked as part of this documentation update. |
 
 ## Inspected Current Workflow
 
@@ -82,47 +96,56 @@ Pilot data creation.
 
 | Stage | Result |
 | --- | --- |
-| Project request submitted | NOT RUN |
-| Provider application submitted | NOT RUN |
-| Admin request review | NOT RUN |
-| Provider review | NOT RUN |
-| Add provider as candidate | NOT RUN |
-| Mark candidate contacted | NOT RUN |
-| Provider response | NOT RUN |
-| Present candidate to student | NOT RUN |
-| Student decision | NOT RUN |
-| Engagement created | NOT RUN |
+| Project request submitted | PASS |
+| Provider application submitted | PASS |
+| Admin request review | PASS |
+| Provider review | PASS |
+| Add provider as candidate | PASS |
+| Mark candidate contacted | PASS |
+| Provider response | PASS |
+| Present candidate to student | PASS |
+| Student decision | PASS |
+| Engagement created | FAIL |
 | Provider starts work | NOT RUN |
 | Provider submits deliverable | NOT RUN |
 | Student confirms completion | NOT RUN |
 | Student submits feedback | NOT RUN |
-| Request timeline verification | NOT RUN |
-| Provider timeline verification | NOT RUN |
-| Admin Ops/email verification | NOT RUN |
+| Request timeline verification | BLOCKED by request state regression |
+| Provider timeline verification | NOT FINALIZED |
+| Admin Ops/email verification | NOT FINALIZED |
 
 ## Email And Outbox
 
-Not evaluated. The run stopped before any data submission or email-triggering
-workflow step. No recipient address, magic link, token URL, provider message ID,
-or email body was accessed or documented.
+Partially evaluated through the matching/student-decision workflow. No recipient
+address, magic link, token URL, provider message ID, or email body is documented
+here.
 
 ## Authorization Negative Checks
 
 Not run. Provider response, student decision, and engagement-token flows were
-not reached because readiness failed before synthetic data creation.
+not completed because the rehearsal stopped at the engagement-creation blocker.
 
 ## Workflow And Database Integrity
 
-No rehearsal workflow events or business rows were intentionally created. There
-were no synthetic records to count, mutate, or clean up.
+The affected Pilot request and accepted candidate remain as residual synthetic
+rehearsal records. No direct database mutation was performed to repair or bypass
+the invalid state.
 
 Non-sensitive record IDs:
 
-- Request ID: none
+- Request ID: `f53c31c8-7c72-4524-8a97-d5de652a1471`
 - Provider application ID: none
-- Candidate ID: none
+- Candidate ID: `3a5c7d4f-59ce-4952-bb3c-5dcb5402fbe2`
 - Engagement ID: none
 - Feedback ID: none
+
+Database consistency result:
+
+- Accepted candidate exists.
+- Request status is invalid for the accepted state: `reviewed`.
+- Request integrity state remains `clear`.
+- Engagement creation fails because the request is no longer `matched`.
+- No `project_engagements` row exists for the affected request.
 
 ## Health And Readiness
 
@@ -144,7 +167,33 @@ readiness failure:
 - Sanitized application log event: `dependency_readiness_failed` with
   dependency `supabase`.
 
-No lifecycle server actions were executed.
+The confirmed blocker is in the application lifecycle, not a token or secret
+exposure issue.
+
+## Confirmed Phase 5.1B Blocker
+
+Stage: engagement creation after student acceptance.
+
+Expected behavior: once a candidate is accepted and the request has entered the
+matched flow, admin review actions should not regress the request back to a
+pre-match review state.
+
+Actual behavior: admin review actions can mutate a matched request back to
+`reviewed`. With the request no longer `matched`, engagement creation fails even
+though the accepted candidate still exists.
+
+Related behavior:
+
+- Another candidate can continue through shortlist/decision if the request is
+  first regressed to `reviewed`.
+- Declining that secondary candidate clears `candidate_rank`, which can make
+  the UI look like previous presentation data disappeared.
+- No engagement was created for the affected Pilot request.
+
+Severity: Controlled Pilot blocker.
+
+Affected code path: admin request review actions,
+`markReviewed`/`updateRequestReview`, because post-match states are not guarded.
 
 ## Free-Plan Security Context
 
@@ -171,15 +220,17 @@ into this document.
 
 ## Cleanup Status
 
-No cleanup required. No rehearsal data was created.
+No cleanup performed. The affected synthetic Pilot records are retained as
+evidence of the blocker.
 
 ## Known Deviations
 
-The controlled lifecycle rehearsal could not begin because the current feature
-preview readiness check reported the Supabase dependency as unavailable.
+The controlled lifecycle rehearsal reached student acceptance but could not
+create an engagement because the request regressed from `matched` to `reviewed`.
 
 ## Launch Recommendation
 
-Do not invite real Pilot users yet. First restore readiness for the current
-feature preview deployment so `/api/readiness` reports Supabase `ok`, then rerun
-the controlled Pilot rehearsal from the beginning with controlled test contacts.
+Do not invite real Pilot users yet. First fix the matched-request regression so
+admin review actions cannot move post-match requests back to `reviewed`, then
+rerun the controlled Pilot rehearsal from the beginning with controlled test
+contacts.
