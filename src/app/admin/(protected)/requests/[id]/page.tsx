@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import {
+  canMutateRequestReviewState,
+  requestReviewLockedLabel,
+} from "@/lib/admin/request-state";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   markIntegrityClear,
@@ -135,6 +139,7 @@ export default async function AdminRequestDetailPage({
   const acceptedCandidate = candidates.find(
     (candidate) => candidate.student_decision_status === "accepted",
   );
+  const reviewActionsAvailable = canMutateRequestReviewState(request.status);
   const { data: engagement, error: engagementError } = acceptedCandidate
     ? await supabase
         .from("project_engagements")
@@ -331,56 +336,77 @@ export default async function AdminRequestDetailPage({
             </section>
           ) : null}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
-            <h3 className="text-xl font-bold text-slate-950">Review actions</h3>
-            <div className="mt-4 grid gap-3">
-              <form action={markNeedsClarification}>
-                <input name="request_id" type="hidden" value={request.id} />
-                <button className="button-secondary w-full" type="submit">
-                  Mark needs clarification
-                </button>
-              </form>
+          {reviewActionsAvailable ? (
+            <>
+              <section className="rounded-lg border border-slate-200 bg-white p-5">
+                <h3 className="text-xl font-bold text-slate-950">
+                  Review actions
+                </h3>
+                <div className="mt-4 grid gap-3">
+                  <form action={markNeedsClarification}>
+                    <input name="request_id" type="hidden" value={request.id} />
+                    <button className="button-secondary w-full" type="submit">
+                      Mark needs clarification
+                    </button>
+                  </form>
 
-              <form action={markReviewed}>
-                <input name="request_id" type="hidden" value={request.id} />
-                <button className="button-secondary w-full" type="submit">
-                  Mark reviewed
-                </button>
-              </form>
+                  <form action={markReviewed}>
+                    <input name="request_id" type="hidden" value={request.id} />
+                    <button className="button-secondary w-full" type="submit">
+                      Mark reviewed
+                    </button>
+                  </form>
 
-              <form action={markIntegrityClear}>
-                <input name="request_id" type="hidden" value={request.id} />
-                <button className="button-secondary w-full" type="submit">
-                  Mark integrity clear
-                </button>
-              </form>
-            </div>
-          </section>
+                  <form action={markIntegrityClear}>
+                    <input name="request_id" type="hidden" value={request.id} />
+                    <button className="button-secondary w-full" type="submit">
+                      Mark integrity clear
+                    </button>
+                  </form>
+                </div>
+              </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
-            <h3 className="text-xl font-bold text-slate-950">Reject request</h3>
-            <form action={rejectRequest} className="mt-4 grid gap-4">
-              <input name="request_id" type="hidden" value={request.id} />
-              <label className="form-field">
-                <span className="form-label">Rejection type</span>
-                <select className="form-input" name="rejection_type" required>
-                  <option value="non_integrity">Non-integrity rejection</option>
-                  <option value="integrity">Academic-integrity rejection</option>
-                </select>
-              </label>
-              <label className="form-field">
-                <span className="form-label">Reason</span>
-                <textarea
-                  className="form-input min-h-28"
-                  name="rejection_reason"
-                  required
-                />
-              </label>
-              <button className="button-primary" type="submit">
-                Reject
-              </button>
-            </form>
-          </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5">
+                <h3 className="text-xl font-bold text-slate-950">
+                  Reject request
+                </h3>
+                <form action={rejectRequest} className="mt-4 grid gap-4">
+                  <input name="request_id" type="hidden" value={request.id} />
+                  <label className="form-field">
+                    <span className="form-label">Rejection type</span>
+                    <select className="form-input" name="rejection_type" required>
+                      <option value="non_integrity">Non-integrity rejection</option>
+                      <option value="integrity">
+                        Academic-integrity rejection
+                      </option>
+                    </select>
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Reason</span>
+                    <textarea
+                      className="form-input min-h-28"
+                      name="rejection_reason"
+                      required
+                    />
+                  </label>
+                  <button className="button-primary" type="submit">
+                    Reject
+                  </button>
+                </form>
+              </section>
+            </>
+          ) : (
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <h3 className="text-xl font-bold text-slate-950">Review locked</h3>
+              <p className="mt-4 text-sm leading-6 text-slate-700">
+                {requestReviewLockedLabel(request.status)}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                Current request status:{" "}
+                <span className="font-bold">{formatStatus(request.status)}</span>
+              </p>
+            </section>
+          )}
         </aside>
       </div>
     </section>
