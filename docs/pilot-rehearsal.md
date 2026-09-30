@@ -6,22 +6,22 @@ Environment: Pilot preview
 
 Source branch: `feature/phase5-pilot-rehearsal`
 
-Source SHA tested: `5571203b4af1662c82e1d22dfdf2bd22d39400b2`
+Source SHA tested: `dd31345b082b39a65ac6237ac205d6f48f102c4f`
 
 Base `origin/dev` SHA: `54e42e3cd6bc918117dd0e560d14eb43f865740b`
 
-Rehearsal marker reserved: `PILOT-REHEARSAL-20260930-5571203`
+Rehearsal marker reserved: `PILOT-REHEARSAL-20260930-DD31345`
 
 Pilot preview deployment inspected:
 
 - Project: `upwork-project`
-- Deployment: `dpl_vc2XzWhwAfgsrT14JgfcDAydFbLm`
-- URL: `https://upwork-project-cwao4tgx3-ciel08-cowboiz10.vercel.app`
+- Deployment: `dpl_6N7jCPsfktpJr8iR4jVYAXmBo7uj`
+- URL: `https://upwork-project-cro9old0j-ciel08-cowboiz10.vercel.app`
 - Alias: `https://upwork-project-git-feature-phase5-pilot-5b40e1-ciel08-cowboiz10.vercel.app`
 - Deployment state: `READY`
 - Deployment target: `preview`
 - Deployment branch: `feature/phase5-pilot-rehearsal`
-- Deployment SHA: `5571203b4af1662c82e1d22dfdf2bd22d39400b2`
+- Deployment SHA: `dd31345b082b39a65ac6237ac205d6f48f102c4f`
 
 ## Result
 
@@ -46,7 +46,7 @@ feedback, token, workflow event, or email outbox row was created.
 | Check | Result | Notes |
 | --- | --- | --- |
 | Repository branch | PASS | Current branch is `feature/phase5-pilot-rehearsal`. |
-| Source SHA | PASS | `HEAD` is `5571203b4af1662c82e1d22dfdf2bd22d39400b2`. |
+| Source SHA | PASS | `HEAD` is `dd31345b082b39a65ac6237ac205d6f48f102c4f`. |
 | Base SHA | PASS | `origin/dev` is `54e42e3cd6bc918117dd0e560d14eb43f865740b`. |
 | Preview deployment | PASS | Deployment is `READY`, `preview`, and built from the feature branch SHA. |
 | Production untouched | PASS | No production deployment, env, schema, or data mutation was performed. |
@@ -137,7 +137,7 @@ Vercel Deployment Protection behavior, not an application endpoint failure.
 
 ## Runtime Log Review
 
-Runtime logs for deployment `dpl_vc2XzWhwAfgsrT14JgfcDAydFbLm` showed the
+Runtime logs for deployment `dpl_6N7jCPsfktpJr8iR4jVYAXmBo7uj` showed the
 readiness failure:
 
 - `GET /api/readiness` returned `503`.
