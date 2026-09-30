@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
+import { studentDeclineCandidateUpdate } from "@/lib/admin/request-state";
 import {
   sendProviderContactedNotification,
   sendShortlistPresentedNotification,
@@ -827,13 +828,12 @@ export async function updateCandidateStudentDecision(formData: FormData) {
     const decidedAt = new Date().toISOString();
     const { error: candidateError } = await supabase
       .from("request_candidates")
-      .update({
-        student_decision_status: "declined",
-        student_decision_at: decidedAt,
-        declined_by: "student",
-        decline_reason: parsed.data.decline_reason,
-        candidate_rank: null,
-      })
+      .update(
+        studentDeclineCandidateUpdate({
+          decidedAt,
+          declineReason: parsed.data.decline_reason,
+        }),
+      )
       .eq("id", candidateId);
 
     if (candidateError) {
