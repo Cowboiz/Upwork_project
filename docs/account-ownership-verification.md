@@ -5,7 +5,7 @@ Phase: 5.2D
 Purpose: verify that authenticated ownership reads work without broadening
 normal-user mutation access or auto-claiming historical rows.
 
-## RLS Verification Plan
+## RPC Verification Plan
 
 Run against a non-production development database after applying
 `20261001163117_phase5_account_ownership_select_policies.sql`.
@@ -14,14 +14,28 @@ Use synthetic profiles and intake rows only. Do not use real contact values.
 
 Expected checks:
 
-1. Student A can select a `project_requests` row where
-   `linked_student_profile_id = auth.uid()`.
-2. Student B cannot select Student A's linked `project_requests` row.
-3. Provider A can select a `provider_applications` row where
-   `linked_provider_profile_id = auth.uid()`.
-4. Provider B cannot select Provider A's linked `provider_applications` row.
-5. Anonymous requests cannot select private owned intake rows.
-6. Admin access through the existing admin workflow remains available.
+1. Student A can execute `public.get_my_project_requests()` and receive only
+   rows where `linked_student_profile_id = auth.uid()`.
+2. Student B can execute `public.get_my_project_requests()` and receives no
+   Student A records.
+3. Provider A can execute `public.get_my_provider_applications()` and receive
+   only rows where `linked_provider_profile_id = auth.uid()`.
+4. Provider B can execute `public.get_my_provider_applications()` and receives
+   no Provider A records.
+5. Anonymous callers cannot execute either RPC.
+6. The RPC signatures accept no ownership or user ID parameters.
+7. Operator-only columns such as `internal_notes`, `reviewed_by`, and contact
+   values are not present in either RPC return type.
+8. Admin access through the existing admin workflow remains available.
+
+## Safe Read Boundary
+
+Phase 5.2D does not grant normal users direct base-table `SELECT` policies on
+`project_requests` or `provider_applications`. Owner reads are exposed only
+through SECURITY DEFINER RPCs with explicit safe return columns:
+
+- `public.get_my_project_requests()`
+- `public.get_my_provider_applications()`
 
 ## Mutation Boundary
 
