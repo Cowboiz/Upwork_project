@@ -23,6 +23,9 @@ export default function HomePage() {
             hackathon project.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link className="button-secondary" href="/login">
+              Sign in
+            </Link>
             <Link className="button-primary" href="/request">
               Submit project request
             </Link>

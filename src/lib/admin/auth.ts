@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { getCanonicalLoginRedirectForAdminArea } from "@/lib/auth/user-shared";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function requireAdmin() {
@@ -11,15 +12,13 @@ export async function requireAdmin() {
   const userId = claimsData?.claims.sub;
 
   if (claimsError || !userId) {
-    redirect("/admin/login");
+    redirect(getCanonicalLoginRedirectForAdminArea());
   }
 
   const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
 
   if (adminError || !isAdmin) {
-    redirect(
-      `/admin/login?error=${encodeURIComponent("You do not have admin access.")}`,
-    );
+    redirect("/app");
   }
 
   return {

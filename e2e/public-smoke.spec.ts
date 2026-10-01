@@ -32,6 +32,37 @@ test.describe("public smoke routes", () => {
     await expect(
       page.getByRole("link", { name: "Apply as provider" }),
     ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  });
+
+  test("normal user login renders without authenticating", async ({ page }) => {
+    await page.goto("/login");
+
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  });
+
+  test("app dashboard redirects unauthenticated users to login", async ({
+    page,
+  }) => {
+    await page.goto("/app");
+
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("admin login redirects unauthenticated users to canonical login", async ({
+    page,
+  }) => {
+    await page.goto("/admin/login");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
   });
 
   test("project request form renders without submitting", async ({ page }) => {
@@ -60,15 +91,16 @@ test.describe("public smoke routes", () => {
     ).toBeVisible();
   });
 
-  test("admin login renders without authenticating", async ({ page }) => {
+  test("admin login no longer renders a second credential form", async ({
+    page,
+  }) => {
     await page.goto("/admin/login");
 
-    await expect(
-      page.getByRole("heading", { name: "Sign in" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(page.locator("form")).toHaveCount(1);
   });
 
   test("student engagement route handles an invalid bearer token safely", async ({
