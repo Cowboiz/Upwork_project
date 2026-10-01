@@ -13,9 +13,8 @@ type GlobalHeaderProps = {
 };
 
 export async function GlobalHeader({ viewer }: GlobalHeaderProps) {
-  const authState =
-    viewer === undefined ? await getOptionalUser() : { user: viewer };
-  const user = authState.user;
+    const user =
+      viewer === undefined ? await getOptionalUser() : viewer;
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95">

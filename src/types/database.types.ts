@@ -1353,6 +1353,38 @@ export type Database = {
         Args: { p_dispute_notes: string; p_token_id: string }
         Returns: string
       }
+      get_my_project_requests: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          category: string
+          description: string
+          desired_deliverables: string | null
+          deadline: string | null
+          deadline_flexible: boolean
+          budget_range: string
+          currency: string
+          integrity_review_status: string
+          status: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      get_my_provider_applications: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          applicant_name: string
+          skills: string[]
+          preferred_project_types: string[]
+          portfolio_urls: string[]
+          availability: string
+          rate_expectations: string
+          status: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       mark_request_candidate_contacted: {
         Args: { p_candidate_id: string; p_request_id: string }

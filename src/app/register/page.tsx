@@ -13,7 +13,7 @@ type RegisterPageProps = {
 
 export default async function RegisterPage({ searchParams }: RegisterPageProps) {
   const params = await searchParams;
-  const { user } = await getOptionalUser();
+  const user = await getOptionalUser();
 
   if (user) {
     redirect(getRegisterRedirectForRole(user.profile.role));

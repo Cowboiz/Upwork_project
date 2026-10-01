@@ -105,7 +105,7 @@ export async function getOptionalUser() {
   const userId = claimsData?.claims.sub;
 
   if (claimsError || !userId) {
-    return { supabase, user: null };
+    return null;
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -115,18 +115,15 @@ export async function getOptionalUser() {
     .single();
 
   if (profileError || !profile || !isUserRole(profile.role)) {
-    return { supabase, user: null };
+    return null;
   }
 
   return {
-    supabase,
-    user: {
-      id: userId,
-      email:
-        typeof claimsData.claims.email === "string"
-          ? claimsData.claims.email
-          : null,
-      profile: toAuthenticatedProfile(profile),
-    },
+    id: userId,
+    email:
+      typeof claimsData.claims.email === "string"
+        ? claimsData.claims.email
+        : null,
+    profile: toAuthenticatedProfile(profile),
   };
 }
