@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PublicHeader } from "./public-header";
+import { GlobalHeader } from "@/components/site/global-header";
 
 const requesterCategories = [
   "Landing pages",
@@ -39,7 +39,7 @@ const providerSteps = [
 export default function HomePage() {
   return (
     <>
-      <PublicHeader />
+      <GlobalHeader />
       <main>
         <section className="bg-white">
           <div className="page-shell grid min-h-[calc(100vh-80px)] gap-10 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-16">

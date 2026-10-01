@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PublicHeader } from "@/app/public-header";
+import { GlobalHeader } from "@/components/site/global-header";
 import { requireUser } from "@/lib/auth/user";
 
 const navItems = [
@@ -18,7 +18,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <PublicHeader viewer={user} />
+      <GlobalHeader viewer={user} />
       <div className="border-b border-slate-200 bg-white">
         <nav
           aria-label="Workspace navigation"

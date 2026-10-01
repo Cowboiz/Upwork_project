@@ -2,20 +2,21 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import type { AccountMenuItem } from "@/lib/auth/account-menu";
 
 type AccountMenuProps = {
-  admin: boolean;
   displayName: string;
   email: string | null;
-  role: string;
+  items: AccountMenuItem[];
+  roleLabel: string;
   signOutAction: (formData: FormData) => void | Promise<void>;
 };
 
 export function AccountMenu({
-  admin,
   displayName,
   email,
-  role,
+  items,
+  roleLabel,
   signOutAction,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
@@ -69,7 +70,7 @@ export function AccountMenu({
             {displayName}
           </span>
           <span className="block truncate text-xs font-bold uppercase text-slate-500">
-            {role}
+            {roleLabel}
           </span>
         </span>
       </button>
@@ -82,7 +83,10 @@ export function AccountMenu({
           role="menu"
         >
           <div className="border-b border-slate-200 px-4 py-3">
-            <p className="truncate text-sm font-bold text-slate-950">
+            <p className="text-xs font-bold uppercase text-slate-500">
+              Signed in as
+            </p>
+            <p className="mt-1 truncate text-sm font-bold text-slate-950">
               {displayName}
             </p>
             {email ? (
@@ -91,39 +95,16 @@ export function AccountMenu({
           </div>
 
           <div className="grid p-2 text-sm font-bold text-slate-700">
-            {admin ? (
+            {items.map((item) => (
               <Link
                 className="rounded-md px-3 py-2 hover:bg-slate-100"
-                href="/admin"
+                href={item.href}
+                key={item.href}
                 role="menuitem"
               >
-                Admin dashboard
+                {item.label}
               </Link>
-            ) : (
-              <>
-                <Link
-                  className="rounded-md px-3 py-2 hover:bg-slate-100"
-                  href="/app"
-                  role="menuitem"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  className="rounded-md px-3 py-2 hover:bg-slate-100"
-                  href="/app/profile"
-                  role="menuitem"
-                >
-                  Personal information
-                </Link>
-                <Link
-                  className="rounded-md px-3 py-2 hover:bg-slate-100"
-                  href="/app/settings"
-                  role="menuitem"
-                >
-                  Account settings
-                </Link>
-              </>
-            )}
+            ))}
           </div>
 
           <form action={signOutAction} className="border-t border-slate-200 p-2">

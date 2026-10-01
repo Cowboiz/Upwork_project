@@ -1,7 +1,11 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
-import { getCanonicalLoginRedirectForAdminArea } from "@/lib/auth/user-shared";
+import {
+  getCanonicalLoginRedirectForAdminArea,
+  isUserRole,
+  toAuthenticatedProfile,
+} from "@/lib/auth/user-shared";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function requireAdmin() {
@@ -21,8 +25,27 @@ export async function requireAdmin() {
     redirect("/app");
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, username")
+    .eq("id", userId)
+    .single();
+
+  if (profileError || !profile || !isUserRole(profile.role)) {
+    await supabase.auth.signOut();
+    redirect(getCanonicalLoginRedirectForAdminArea());
+  }
+
   return {
     supabase,
+    user: {
+      id: userId,
+      email:
+        typeof claimsData.claims.email === "string"
+          ? claimsData.claims.email
+          : null,
+      profile: toAuthenticatedProfile(profile),
+    },
     userId,
   };
 }

@@ -12,6 +12,18 @@ export function AdminNav() {
       {adminNavItems.map((item) => {
         const isActive = activeSection === item.section;
 
+        if (item.disabled) {
+          return (
+            <span
+              aria-disabled="true"
+              className="rounded-lg px-3 py-2 text-slate-400"
+              key={item.href}
+            >
+              {item.label}
+            </span>
+          );
+        }
+
         return (
           <Link
             aria-current={isActive ? "page" : undefined}
