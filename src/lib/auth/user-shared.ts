@@ -1,8 +1,10 @@
 import type { Database } from "@/types/database.types";
 
 export const USER_ROLES = ["student", "freelancer", "both", "admin"] as const;
+export const APP_USER_ROLES = ["student", "freelancer", "both"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
+export type AppUserRole = (typeof APP_USER_ROLES)[number];
 
 export type AuthenticatedProfile = {
   id: string;
@@ -28,6 +30,10 @@ const LOCAL_ORIGIN = "https://projectmatch.local";
 
 export function isUserRole(role: string): role is UserRole {
   return USER_ROLES.includes(role as UserRole);
+}
+
+export function isAppUserRole(role: string): role is AppUserRole {
+  return APP_USER_ROLES.includes(role as AppUserRole);
 }
 
 export function normalizeUserRole(role: string): UserRole {
@@ -62,10 +68,34 @@ export function getPostLoginRedirect(
       return fallback;
     }
 
+    if (role === "admin") {
+      return parsed.pathname.startsWith("/admin")
+        ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+        : fallback;
+    }
+
+    if (parsed.pathname.startsWith("/admin")) {
+      return fallback;
+    }
+
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return fallback;
   }
+}
+
+export function getUserAppRedirectForRole(role: UserRole) {
+  return role === "admin" ? ADMIN_REDIRECT : null;
+}
+
+export function getAdminAreaRedirectForRole(role: UserRole) {
+  return role === "admin" ? null : DEFAULT_USER_REDIRECT;
+}
+
+export function getCanonicalLoginRedirectForAdminArea() {
+  const params = new URLSearchParams({ next: ADMIN_REDIRECT });
+
+  return `/login?${params.toString()}`;
 }
 
 export function toAuthenticatedProfile(profile: ProfileRow) {

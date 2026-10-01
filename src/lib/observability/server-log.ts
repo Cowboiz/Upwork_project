@@ -20,7 +20,8 @@ export type RateLimitAction =
   | "project_request_submit_contact"
   | "project_request_submit_ip"
   | "provider_application_submit_contact"
-  | "provider_application_submit_ip";
+  | "provider_application_submit_ip"
+  | "user_login_ip";
 
 export type IntakeKind = "project_request" | "provider_application";
 export type IntakeOperationStage = "idempotency_lookup" | "insert" | "rate_limit";

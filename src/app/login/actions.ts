@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   getPostLoginRedirect,
+  isUserRole,
   toAuthenticatedProfile,
 } from "@/lib/auth/user-shared";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getTrustedClientIp } from "@/lib/security/request-ip";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const loginSchema = z.object({
@@ -24,6 +27,17 @@ function loginErrorRedirect(message: string, redirectTo?: string): never {
   redirect(`/login?${params.toString()}`);
 }
 
+async function enforceLoginRateLimit() {
+  const clientIp = await getTrustedClientIp();
+
+  return checkRateLimit({
+    action: "user_login_ip",
+    identifier: clientIp,
+    limit: 10,
+    windowSeconds: 900,
+  });
+}
+
 export async function loginUser(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -31,6 +45,24 @@ export async function loginUser(formData: FormData) {
     loginErrorRedirect(
       parsed.error.issues[0]?.message ?? "Check your login details.",
       formData.get("redirectTo")?.toString(),
+    );
+  }
+
+  let loginLimitAllowed = false;
+
+  try {
+    loginLimitAllowed = (await enforceLoginRateLimit()).allowed;
+  } catch {
+    loginErrorRedirect(
+      "We could not process your login. Please try again.",
+      parsed.data.redirectTo,
+    );
+  }
+
+  if (!loginLimitAllowed) {
+    loginErrorRedirect(
+      "Too many login attempts. Please try again later.",
+      parsed.data.redirectTo,
     );
   }
 
@@ -62,7 +94,7 @@ export async function loginUser(formData: FormData) {
     .eq("id", userId)
     .single();
 
-  if (profileError || !profile) {
+  if (profileError || !profile || !isUserRole(profile.role)) {
     await supabase.auth.signOut();
     loginErrorRedirect("We could not verify your account. Please try again.");
   }
