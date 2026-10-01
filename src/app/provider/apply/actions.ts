@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getOptionalUser } from "@/lib/auth/user";
+import { linkedProviderProfileIdFor } from "@/lib/auth/ownership";
 import { sendProviderApplicationSubmittedNotifications } from "@/lib/email/outbox";
 import { logIntakeOperationFailed } from "@/lib/observability/server-log";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -90,6 +92,9 @@ export async function submitProviderApplication(formData: FormData) {
 
   const input = parsed.data;
   const confirmedAt = new Date().toISOString();
+  const linkedProviderProfileId = linkedProviderProfileIdFor(
+    await getOptionalUser(),
+  );
   const supabase = createSupabaseAdminClient();
   let allowed = false;
 
@@ -127,6 +132,7 @@ export async function submitProviderApplication(formData: FormData) {
       age_eligible_confirmed: input.age_eligible_confirmed,
       privacy_acknowledged_at: confirmedAt,
       policy_accepted_at: confirmedAt,
+      linked_provider_profile_id: linkedProviderProfileId,
     })
     .select("id, applicant_name, contact_method, contact_value")
     .single();

@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getOptionalUser } from "@/lib/auth/user";
+import { linkedStudentProfileIdFor } from "@/lib/auth/ownership";
 import { sendProjectRequestSubmittedNotifications } from "@/lib/email/outbox";
 import { logIntakeOperationFailed } from "@/lib/observability/server-log";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -86,6 +88,9 @@ export async function submitProjectRequest(formData: FormData) {
   }
 
   const input = parsed.data;
+  const linkedStudentProfileId = linkedStudentProfileIdFor(
+    await getOptionalUser(),
+  );
   const supabase = createSupabaseAdminClient();
   let allowed = false;
 
@@ -127,6 +132,7 @@ export async function submitProjectRequest(formData: FormData) {
       contact_permission_confirmed: input.contact_permission_confirmed,
       age_eligible_confirmed: input.age_eligible_confirmed,
       integrity_attested: input.integrity_attested,
+      linked_student_profile_id: linkedStudentProfileId,
     })
     .select("id, requester_name, contact_method, contact_value")
     .single();
