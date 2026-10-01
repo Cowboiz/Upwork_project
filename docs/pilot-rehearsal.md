@@ -2,7 +2,7 @@
 
 Date: 2026-10-01
 
-Environment: Pilot
+Environment: Controlled Pilot
 
 Source branch: `feature/phase5-pilot-rehearsal`
 
@@ -18,7 +18,8 @@ Final validated Pilot surface:
 - Deployment: `dpl_Dq4SLetGDCXg3TjFjnfKTdpneRYh`
 - URL: `https://upwork-project-gold.vercel.app`
 - Deployment state: `READY`
-- Deployment target: Pilot
+- Vercel deployment target: production
+- Business/data environment: Controlled Pilot
 - Deployment branch: `main`
 - Deployment SHA: `d43a1cbb36460cca2eaf127c9114a7393c89128b`
 - Pilot Supabase project: `ProjectMatch Pilot`
