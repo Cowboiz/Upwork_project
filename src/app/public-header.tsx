@@ -1,39 +1,28 @@
 import Link from "next/link";
-import { isUserRole, normalizeUserRole } from "@/lib/auth/user-shared";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { AccountMenu } from "@/app/account-menu";
+import { getOptionalUser, type AuthenticatedUser } from "@/lib/auth/user";
+import { logoutUser } from "./login/actions";
 
-async function getAuthEntry() {
-  const supabase = await createSupabaseServerClient();
-  const { data: claimsData, error: claimsError } =
-    await supabase.auth.getClaims();
-  const userId = claimsData?.claims.sub;
+type GlobalHeaderProps = {
+  viewer?: AuthenticatedUser | null;
+};
 
-  if (claimsError || !userId) {
-    return { href: "/login", label: "Sign in" };
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  if (!profile || !isUserRole(profile.role)) {
-    return { href: "/login", label: "Sign in" };
-  }
-
-  const role = normalizeUserRole(profile.role);
-
-  return role === "admin"
-    ? { href: "/admin", label: "Admin dashboard" }
-    : { href: "/app", label: "Dashboard" };
+function getDisplayName(viewer: AuthenticatedUser) {
+  return (
+    viewer.profile.fullName ??
+    viewer.profile.username ??
+    viewer.email ??
+    "ProjectMatch account"
+  );
 }
 
-export async function PublicHeader() {
-  const authEntry = await getAuthEntry();
+export async function PublicHeader({ viewer }: GlobalHeaderProps) {
+  const authState =
+    viewer === undefined ? await getOptionalUser() : { user: viewer };
+  const user = authState.user;
 
   return (
-    <header className="border-b border-slate-200 bg-white/95">
+    <header className="border-b border-slate-200 bg-white/95 sticky top-0 z-10">
       <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center justify-between gap-4">
           <Link className="text-xl font-bold text-blue-700" href="/">
@@ -45,7 +34,7 @@ export async function PublicHeader() {
         </div>
 
         <nav
-          aria-label="Public navigation"
+          aria-label="Global navigation"
           className="flex flex-wrap items-center gap-3 text-sm font-bold text-slate-700 lg:justify-end"
         >
           <Link className="hover:text-blue-700" href="/#how-it-works">
@@ -57,12 +46,28 @@ export async function PublicHeader() {
           <Link className="hover:text-blue-700" href="/#providers">
             For providers
           </Link>
-          <Link className="hover:text-blue-700" href={authEntry.href}>
-            {authEntry.label}
-          </Link>
+          {user ? null : (
+            <>
+              <Link className="hover:text-blue-700" href="/login">
+                Sign in
+              </Link>
+              <Link className="button-secondary" href="/register">
+                Create account
+              </Link>
+            </>
+          )}
           <Link className="button-primary hidden lg:inline-flex" href="/request">
             Submit project
           </Link>
+          {user ? (
+            <AccountMenu
+              admin={user.profile.role === "admin"}
+              displayName={getDisplayName(user)}
+              email={user.email}
+              role={user.profile.role}
+              signOutAction={logoutUser}
+            />
+          ) : null}
         </nav>
       </div>
     </header>

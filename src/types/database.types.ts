@@ -1387,6 +1387,16 @@ export type Database = {
         Args: { p_feedback_text: string; p_rating: number; p_token_id: string }
         Returns: string
       }
+      update_my_profile: {
+        Args: { p_full_name: string; p_username: string }
+        Returns: {
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string
+          username: string | null
+        }[]
+      }
       update_project_engagement_status: {
         Args: {
           p_engagement_id: string

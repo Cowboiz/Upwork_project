@@ -87,6 +87,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Sign in
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          New to ProjectMatch?{" "}
+          <Link className="font-bold text-blue-700" href="/register">
+            Create an account
+          </Link>
+        </p>
       </section>
     </main>
   );

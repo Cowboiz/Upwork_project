@@ -37,6 +37,9 @@ test.describe("public smoke routes", () => {
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
     await expect(
+      page.getByRole("link", { name: "Create account" }).first(),
+    ).toBeVisible();
+    await expect(
       page.getByRole("heading", { name: "A reviewed path from request to delivery" }),
     ).toBeVisible();
   });
@@ -50,6 +53,27 @@ test.describe("public smoke routes", () => {
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Create an account" }),
+    ).toBeVisible();
+  });
+
+  test("registration page renders normal account options", async ({ page }) => {
+    await page.goto("/register");
+
+    await expect(
+      page.getByRole("heading", { name: "Create account" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Full name")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Account type")).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Confirm password")).toBeVisible();
+    await expect(
+      page.locator('select[name="accountRole"] option'),
+    ).toHaveText(["Requester", "Provider", "Requester and provider"]);
+    await expect(page.getByText("admin")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   });
 
   test("app dashboard redirects unauthenticated users to login", async ({

@@ -63,3 +63,36 @@ export async function requireUser() {
     },
   };
 }
+
+export async function getOptionalUser() {
+  const supabase = await createSupabaseServerClient();
+  const { data: claimsData, error: claimsError } =
+    await supabase.auth.getClaims();
+  const userId = claimsData?.claims.sub;
+
+  if (claimsError || !userId) {
+    return { supabase, user: null };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, username")
+    .eq("id", userId)
+    .single();
+
+  if (profileError || !profile || !isUserRole(profile.role)) {
+    return { supabase, user: null };
+  }
+
+  return {
+    supabase,
+    user: {
+      id: userId,
+      email:
+        typeof claimsData.claims.email === "string"
+          ? claimsData.claims.email
+          : null,
+      profile: toAuthenticatedProfile(profile),
+    },
+  };
+}

@@ -13,14 +13,14 @@ export default async function AppDashboardPage() {
         </h1>
         <p className="mt-3 max-w-2xl leading-7 text-slate-600">
           Your authenticated workspace is ready. Project, message, notification,
-          and profile tools will build on this foundation.
+          and engagement tools will build on this foundation.
         </p>
       </header>
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div
           className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-          id="projects"
+          id="requests"
         >
           <h2 className="text-lg font-bold text-slate-950">
             Projects / Requests
@@ -32,25 +32,22 @@ export default async function AppDashboardPage() {
 
         <div
           className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-          id="messages"
+          id="engagements"
         >
-          <h2 className="text-lg font-bold text-slate-950">Messages</h2>
+          <h2 className="text-lg font-bold text-slate-950">Engagements</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Chat is intentionally not enabled in Phase 5.2A.
+            Engagement management will appear here after matched work begins.
           </p>
         </div>
 
         <div
           className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-          id="profile"
+          id="messages"
         >
-          <h2 className="text-lg font-bold text-slate-950">Profile</h2>
-          <dl className="mt-3 grid gap-2 text-sm text-slate-600">
-            <div>
-              <dt className="font-bold text-slate-700">Role</dt>
-              <dd>{user.profile.role}</dd>
-            </div>
-          </dl>
+          <h2 className="text-lg font-bold text-slate-950">Messages</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Chat is intentionally not enabled in this pilot foundation.
+          </p>
         </div>
       </section>
     </div>

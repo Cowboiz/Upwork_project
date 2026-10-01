@@ -17,6 +17,7 @@ type RequestErrorLogEntry = {
 
 export type RateLimitAction =
   | "admin_login_ip"
+  | "account_register_ip"
   | "project_request_submit_contact"
   | "project_request_submit_ip"
   | "provider_application_submit_contact"

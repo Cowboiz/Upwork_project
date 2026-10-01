@@ -62,6 +62,9 @@ export default function HomePage() {
                 <Link className="button-secondary" href="/provider/apply">
                   Apply as provider
                 </Link>
+                <Link className="button-secondary" href="/register">
+                  Create account
+                </Link>
                 <Link className="button-secondary" href="/login">
                   Sign in
                 </Link>
@@ -265,6 +268,9 @@ export default function HomePage() {
             </Link>
             <Link className="hover:text-blue-700" href="/login">
               Sign in
+            </Link>
+            <Link className="hover:text-blue-700" href="/register">
+              Create account
             </Link>
           </nav>
         </div>
