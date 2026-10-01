@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
+import {
+  requestReviewMutationBlockedMessage,
+  reviewMutableRequestStatuses,
+} from "@/lib/admin/request-state";
 
 const requestIdSchema = z.object({
   request_id: z.uuid("Invalid request id."),
@@ -61,11 +65,14 @@ async function updateRequestReview(
     rejection_reason?: string;
     internal_notes?: string | null;
   },
+  options: {
+    requireReviewMutableState?: boolean;
+  } = {},
 ) {
   const { supabase, userId } = await requireAdmin();
   const reviewedAt = new Date().toISOString();
 
-  const { error } = await supabase
+  let query = supabase
     .from("project_requests")
     .update({
       ...values,
@@ -74,8 +81,35 @@ async function updateRequestReview(
     })
     .eq("id", requestId);
 
+  if (options.requireReviewMutableState) {
+    query = query.in("status", [...reviewMutableRequestStatuses]);
+  }
+
+  const { data: updatedRequest, error } = await query
+    .select("id")
+    .maybeSingle();
+
   if (error) {
     redirectWithError(requestId, "We could not update this request.");
+  }
+
+  if (!updatedRequest) {
+    const { data: currentRequest, error: currentRequestError } = await supabase
+      .from("project_requests")
+      .select("status")
+      .eq("id", requestId)
+      .maybeSingle();
+
+    if (currentRequestError || !currentRequest) {
+      redirectWithError(requestId, "We could not find this request.");
+    }
+
+    redirectWithError(
+      requestId,
+      options.requireReviewMutableState
+        ? requestReviewMutationBlockedMessage(currentRequest.status)
+        : "We could not update this request.",
+    );
   }
 
   revalidateRequestPaths(requestId);
@@ -108,9 +142,13 @@ export async function markNeedsClarification(formData: FormData) {
     redirect("/admin/requests");
   }
 
-  await updateRequestReview(parsed.data.request_id, {
-    status: "needs_clarification",
-  });
+  await updateRequestReview(
+    parsed.data.request_id,
+    {
+      status: "needs_clarification",
+    },
+    { requireReviewMutableState: true },
+  );
 
   redirectToRequest(
     parsed.data.request_id,
@@ -125,9 +163,13 @@ export async function markReviewed(formData: FormData) {
     redirect("/admin/requests");
   }
 
-  await updateRequestReview(parsed.data.request_id, {
-    status: "reviewed",
-  });
+  await updateRequestReview(
+    parsed.data.request_id,
+    {
+      status: "reviewed",
+    },
+    { requireReviewMutableState: true },
+  );
 
   redirectToRequest(
     parsed.data.request_id,
@@ -142,9 +184,13 @@ export async function markIntegrityClear(formData: FormData) {
     redirect("/admin/requests");
   }
 
-  await updateRequestReview(parsed.data.request_id, {
-    integrity_review_status: "clear",
-  });
+  await updateRequestReview(
+    parsed.data.request_id,
+    {
+      integrity_review_status: "clear",
+    },
+    { requireReviewMutableState: true },
+  );
 
   redirectToRequest(
     parsed.data.request_id,
@@ -162,13 +208,17 @@ export async function rejectRequest(formData: FormData) {
     );
   }
 
-  await updateRequestReview(parsed.data.request_id, {
-    status: "rejected",
-    rejection_reason: parsed.data.rejection_reason,
-    ...(parsed.data.rejection_type === "integrity"
-      ? { integrity_review_status: "rejected" as const }
-      : {}),
-  });
+  await updateRequestReview(
+    parsed.data.request_id,
+    {
+      status: "rejected",
+      rejection_reason: parsed.data.rejection_reason,
+      ...(parsed.data.rejection_type === "integrity"
+        ? { integrity_review_status: "rejected" as const }
+        : {}),
+    },
+    { requireReviewMutableState: true },
+  );
 
   redirectToRequest(
     parsed.data.request_id,
