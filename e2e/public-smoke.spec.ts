@@ -18,21 +18,27 @@ test.describe("public smoke routes", () => {
     });
   });
 
-  test("home page renders ProjectMatch and public entry points", async ({
+  test("home page renders ProjectMatch landing and public entry points", async ({
     page,
   }) => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "ProjectMatch" }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Find the right reviewed provider without opening a public bid.",
+      }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Submit project request" }),
+      page.getByRole("link", { name: "Submit project request" }).first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Apply as provider" }),
+      page.getByRole("link", { name: "Apply as provider" }).first(),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "A reviewed path from request to delivery" }),
+    ).toBeVisible();
   });
 
   test("normal user login renders without authenticating", async ({ page }) => {
