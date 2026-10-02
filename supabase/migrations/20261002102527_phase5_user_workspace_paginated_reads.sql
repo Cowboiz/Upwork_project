@@ -80,8 +80,7 @@ returns table (
   status text,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  total_count bigint,
-  active_count bigint
+  total_count bigint
 )
 language sql
 stable
@@ -136,7 +135,8 @@ returns table (
   completed_at timestamp with time zone,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  total_count bigint
+  total_count bigint,
+  active_count bigint
 )
 language sql
 stable
