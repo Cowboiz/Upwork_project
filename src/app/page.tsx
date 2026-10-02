@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PublicHeader } from "./public-header";
+import { GlobalHeader } from "@/components/site/global-header";
 
 const requesterCategories = [
   "Landing pages",
@@ -39,7 +39,7 @@ const providerSteps = [
 export default function HomePage() {
   return (
     <>
-      <PublicHeader />
+      <GlobalHeader />
       <main>
         <section className="bg-white">
           <div className="page-shell grid min-h-[calc(100vh-80px)] gap-10 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-16">
@@ -61,6 +61,9 @@ export default function HomePage() {
                 </Link>
                 <Link className="button-secondary" href="/provider/apply">
                   Apply as provider
+                </Link>
+                <Link className="button-secondary" href="/register">
+                  Create account
                 </Link>
                 <Link className="button-secondary" href="/login">
                   Sign in
@@ -265,6 +268,9 @@ export default function HomePage() {
             </Link>
             <Link className="hover:text-blue-700" href="/login">
               Sign in
+            </Link>
+            <Link className="hover:text-blue-700" href="/register">
+              Create account
             </Link>
           </nav>
         </div>
