@@ -2,6 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import {
+  buildEmailConfirmationRedirect,
+  buildResendConfirmationRateLimitInput,
+  getConfiguredAppOrigin,
+} from "@/lib/auth/email-confirmation";
 import { normalizeSignupRole } from "@/lib/auth/registration";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getTrustedClientIp } from "@/lib/security/request-ip";
@@ -19,6 +24,9 @@ const registerSchema = z
     message: "Passwords do not match.",
     path: ["confirmPassword"],
   });
+const resendConfirmationSchema = z.object({
+  email: z.email("Enter a valid email address."),
+});
 
 function registerRedirect(params: Record<string, string>): never {
   const searchParams = new URLSearchParams(params);
@@ -34,6 +42,23 @@ async function enforceRegisterRateLimit() {
     identifier: clientIp,
     limit: 5,
     windowSeconds: 900,
+  });
+}
+
+async function enforceResendConfirmationRateLimit(email: string) {
+  const clientIp = await getTrustedClientIp();
+
+  return checkRateLimit(
+    buildResendConfirmationRateLimitInput({
+      clientIp,
+      email,
+    }),
+  );
+}
+
+function getEmailConfirmationRedirect() {
+  return buildEmailConfirmationRedirect({
+    appOrigin: getConfiguredAppOrigin(),
   });
 }
 
@@ -70,6 +95,7 @@ export async function registerUser(formData: FormData) {
         account_role: accountRole,
         full_name: parsed.data.fullName,
       },
+      emailRedirectTo: getEmailConfirmationRedirect(),
     },
   });
 
@@ -85,5 +111,51 @@ export async function registerUser(formData: FormData) {
 
   registerRedirect({
     check_email: "1",
+  });
+}
+
+export async function resendSignupConfirmation(formData: FormData) {
+  const parsed = resendConfirmationSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+
+  if (!parsed.success) {
+    registerRedirect({
+      check_email: "1",
+      error:
+        parsed.error.issues[0]?.message ??
+        "Enter the email address you used to register.",
+    });
+  }
+
+  try {
+    const limit = await enforceResendConfirmationRateLimit(parsed.data.email);
+
+    if (!limit.allowed) {
+      registerRedirect({
+        check_email: "1",
+        error: "Please wait before requesting another confirmation email.",
+      });
+    }
+  } catch {
+    registerRedirect({
+      check_email: "1",
+      error: "We could not process that request. Please try again.",
+    });
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  await supabase.auth.resend({
+    email: parsed.data.email,
+    options: {
+      emailRedirectTo: getEmailConfirmationRedirect(),
+    },
+    type: "signup",
+  });
+
+  registerRedirect({
+    check_email: "1",
+    resent: "1",
   });
 }

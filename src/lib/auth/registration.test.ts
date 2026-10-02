@@ -32,6 +32,11 @@ describe("registration role boundary", () => {
     expect(canSelfRegisterRole("admin")).toBe(false);
   });
 
+  it("prevents public signup from creating an admin role", () => {
+    expect(normalizeSignupRole("admin")).toBe("student");
+    expect(isSignupRole("admin")).toBe(false);
+  });
+
   it("routes authenticated users away from registration safely", () => {
     expect(getRegisterRedirectForRole("student")).toBe("/app");
     expect(getRegisterRedirectForRole("freelancer")).toBe("/app");

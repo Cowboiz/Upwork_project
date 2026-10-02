@@ -2,12 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getRegisterRedirectForRole } from "@/lib/auth/registration";
 import { getOptionalUser } from "@/lib/auth/user";
-import { registerUser } from "./actions";
+import { registerUser, resendSignupConfirmation } from "./actions";
 
 type RegisterPageProps = {
   searchParams: Promise<{
     check_email?: string;
     error?: string;
+    resent?: string;
   }>;
 };
 
@@ -39,83 +40,131 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
         </div>
 
         {params.check_email === "1" ? (
-          <div className="notice-success mt-6">
-            Check your email to finish creating your account.
+          <div className="mt-6 grid gap-5">
+            <div className="notice-success">
+              <p className="font-bold">Email confirmation required</p>
+              <p className="mt-2">
+                Open the confirmation link we sent to finish creating your
+                account. Check spam or promotions if it does not arrive soon.
+              </p>
+            </div>
+
+            {params.resent === "1" ? (
+              <div className="notice-success">
+                If that address is eligible, we sent another confirmation
+                email.
+              </div>
+            ) : null}
+
+            {params.error ? (
+              <div className="notice-error">{params.error}</div>
+            ) : null}
+
+            <form action={resendSignupConfirmation} className="grid gap-4">
+              <label className="form-field">
+                <span className="form-label">Email</span>
+                <input
+                  autoComplete="email"
+                  className="form-input"
+                  name="email"
+                  required
+                  type="email"
+                />
+              </label>
+              <button className="button-primary" type="submit">
+                Resend confirmation email
+              </button>
+            </form>
+
+            <p className="text-center text-sm text-slate-600">
+              Already confirmed?{" "}
+              <Link className="font-bold text-blue-700" href="/login">
+                Sign in
+              </Link>
+            </p>
           </div>
         ) : null}
 
-        {params.error ? (
+        {params.check_email !== "1" && params.error ? (
           <div className="notice-error mt-6">{params.error}</div>
         ) : null}
 
-        <form action={registerUser} className="mt-6 grid gap-5">
-          <label className="form-field">
-            <span className="form-label">Full name</span>
-            <input
-              autoComplete="name"
-              className="form-input"
-              maxLength={120}
-              name="fullName"
-              required
-              type="text"
-            />
-          </label>
+        {params.check_email !== "1" ? (
+          <form action={registerUser} className="mt-6 grid gap-5">
+            <label className="form-field">
+              <span className="form-label">Full name</span>
+              <input
+                autoComplete="name"
+                className="form-input"
+                maxLength={120}
+                name="fullName"
+                required
+                type="text"
+              />
+            </label>
 
-          <label className="form-field">
-            <span className="form-label">Email</span>
-            <input
-              autoComplete="email"
-              className="form-input"
-              name="email"
-              required
-              type="email"
-            />
-          </label>
+            <label className="form-field">
+              <span className="form-label">Email</span>
+              <input
+                autoComplete="email"
+                className="form-input"
+                name="email"
+                required
+                type="email"
+              />
+            </label>
 
-          <label className="form-field">
-            <span className="form-label">Account type</span>
-            <select className="form-input" defaultValue="student" name="accountRole">
-              <option value="student">Requester</option>
-              <option value="freelancer">Provider</option>
-              <option value="both">Requester and provider</option>
-            </select>
-          </label>
+            <label className="form-field">
+              <span className="form-label">Account type</span>
+              <select
+                className="form-input"
+                defaultValue="student"
+                name="accountRole"
+              >
+                <option value="student">Requester</option>
+                <option value="freelancer">Provider</option>
+                <option value="both">Requester and provider</option>
+              </select>
+            </label>
 
-          <label className="form-field">
-            <span className="form-label">Password</span>
-            <input
-              autoComplete="new-password"
-              className="form-input"
-              minLength={12}
-              name="password"
-              required
-              type="password"
-            />
-          </label>
+            <label className="form-field">
+              <span className="form-label">Password</span>
+              <input
+                autoComplete="new-password"
+                className="form-input"
+                minLength={12}
+                name="password"
+                required
+                type="password"
+              />
+            </label>
 
-          <label className="form-field">
-            <span className="form-label">Confirm password</span>
-            <input
-              autoComplete="new-password"
-              className="form-input"
-              minLength={12}
-              name="confirmPassword"
-              required
-              type="password"
-            />
-          </label>
+            <label className="form-field">
+              <span className="form-label">Confirm password</span>
+              <input
+                autoComplete="new-password"
+                className="form-input"
+                minLength={12}
+                name="confirmPassword"
+                required
+                type="password"
+              />
+            </label>
 
-          <button className="button-primary" type="submit">
-            Create account
-          </button>
-        </form>
+            <button className="button-primary" type="submit">
+              Create account
+            </button>
+          </form>
+        ) : null}
 
-        <p className="mt-6 text-center text-sm text-slate-600">
-          Already have an account?{" "}
-          <Link className="font-bold text-blue-700" href="/login">
-            Sign in
-          </Link>
-        </p>
+        {params.check_email !== "1" ? (
+          <p className="mt-6 text-center text-sm text-slate-600">
+            Already have an account?{" "}
+            <Link className="font-bold text-blue-700" href="/login">
+              Sign in
+            </Link>
+          </p>
+        ) : null}
       </section>
     </main>
   );

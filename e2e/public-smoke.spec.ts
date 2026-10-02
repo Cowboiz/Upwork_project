@@ -76,6 +76,36 @@ test.describe("public smoke routes", () => {
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   });
 
+  test("registration pending confirmation page renders resend guidance", async ({
+    page,
+  }) => {
+    await page.goto("/register?check_email=1");
+
+    await expect(
+      page.getByRole("heading", { name: "Create account" }),
+    ).toBeVisible();
+    await expect(page.getByText("Email confirmation required")).toBeVisible();
+    await expect(page.getByText(/Check spam or promotions/)).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Resend confirmation email" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  });
+
+  test("confirmation error page does not expose raw auth errors", async ({
+    page,
+  }) => {
+    await page.goto("/auth/confirm-error");
+
+    await expect(
+      page.getByRole("heading", { name: "Confirmation link unavailable" }),
+    ).toBeVisible();
+    await expect(page.getByText(/could not be used/)).toBeVisible();
+    await expect(page.getByText(/expired/)).toBeVisible();
+    await expect(page.getByText(/invalid_grant|otp_expired|AuthApiError/)).toHaveCount(0);
+  });
+
   test("app dashboard redirects unauthenticated users to login", async ({
     page,
   }) => {
