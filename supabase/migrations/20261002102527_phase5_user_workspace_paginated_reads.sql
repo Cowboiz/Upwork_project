@@ -59,11 +59,11 @@ as $$
     where (select auth.uid()) is not null
       and project_requests.linked_student_profile_id = (select auth.uid())
   )
-  select owned_requests.*
-  from owned_requests, safe_args
-  order by owned_requests.created_at desc, owned_requests.id desc
-  limit safe_args.page_limit
-  offset safe_args.page_offset;
+    select owned_requests.*
+    from owned_requests
+    order by owned_requests.created_at desc, owned_requests.id desc
+    limit (select page_limit from safe_args)
+    offset (select page_offset from safe_args);
 $$;
 
 create or replace function public.get_my_provider_applications(
@@ -108,11 +108,11 @@ as $$
     where (select auth.uid()) is not null
       and provider_applications.linked_provider_profile_id = (select auth.uid())
   )
-  select owned_applications.*
-  from owned_applications, safe_args
-  order by owned_applications.created_at desc, owned_applications.id desc
-  limit safe_args.page_limit
-  offset safe_args.page_offset;
+    select owned_applications.*
+    from owned_applications
+    order by owned_applications.created_at desc, owned_applications.id desc
+    limit (select page_limit from safe_args)
+    offset (select page_offset from safe_args);
 $$;
 
 create or replace function public.get_my_engagements(
@@ -193,11 +193,11 @@ as $$
         ) = (select auth.uid())
       )
   )
-  select visible_engagements.*
-  from visible_engagements, safe_args
-  order by visible_engagements.created_at desc, visible_engagements.engagement_id desc
-  limit safe_args.page_limit
-  offset safe_args.page_offset;
+    select visible_engagements.*
+    from visible_engagements
+    order by visible_engagements.created_at desc, visible_engagements.engagement_id desc
+    limit (select page_limit from safe_args)
+    offset (select page_offset from safe_args);
 $$;
 
 revoke all on function public.get_my_project_requests(integer, integer) from public;
