@@ -84,6 +84,20 @@ test.describe("public smoke routes", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
+  test("workspace data routes redirect unauthenticated users to login", async ({
+    page,
+  }) => {
+    for (const path of [
+      "/app/requests?page=0",
+      "/app/provider?page=abc",
+      "/app/engagements?page=-1",
+      "/app/messages",
+    ]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login$/);
+    }
+  });
+
   test("admin login redirects unauthenticated users to canonical login", async ({
     page,
   }) => {

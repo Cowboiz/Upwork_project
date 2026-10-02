@@ -53,6 +53,11 @@ export type EmailPipelineNotification =
   | "project_request_submitted"
   | "shortlist_presented";
 
+export type WorkspaceDataResource =
+  | "engagements"
+  | "project_requests"
+  | "provider_applications";
+
 function writeStructuredLog(
   level: "error" | "warn",
   entry: Record<string, unknown>,
@@ -205,5 +210,17 @@ export function logEmailPipelineFailed(
       notification,
     },
     `{"level":"error","event":"email_pipeline_failed","notification":"${notification}"}`,
+  );
+}
+
+export function logWorkspaceDataLoadFailed(resource: WorkspaceDataResource) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "workspace_data_load_failed",
+      resource,
+    },
+    `{"level":"error","event":"workspace_data_load_failed","resource":"${resource}"}`,
   );
 }
