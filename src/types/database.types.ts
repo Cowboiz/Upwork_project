@@ -1354,34 +1354,58 @@ export type Database = {
         Returns: string
       }
       get_my_project_requests: {
-        Args: Record<PropertyKey, never>
+        Args: { p_limit: number; p_offset: number }
         Returns: {
-          id: string
+          active_count: number
+          budget_range: string
           category: string
-          description: string
-          desired_deliverables: string | null
+          currency: string
+          created_at: string
           deadline: string | null
           deadline_flexible: boolean
-          budget_range: string
-          currency: string
+          description: string
+          desired_deliverables: string | null
+          id: string
           integrity_review_status: string
           status: string
-          created_at: string
+          total_count: number
           updated_at: string
         }[]
       }
       get_my_provider_applications: {
-        Args: Record<PropertyKey, never>
+        Args: { p_limit: number; p_offset: number }
         Returns: {
-          id: string
           applicant_name: string
-          skills: string[]
-          preferred_project_types: string[]
-          portfolio_urls: string[]
           availability: string
-          rate_expectations: string
-          status: string
           created_at: string
+          id: string
+          preferred_project_types: string[]
+          rate_expectations: string
+          skills: string[]
+          status: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
+      get_my_engagements: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          active_count: number
+          agreed_amount: number
+          agreed_deadline: string | null
+          category: string
+          completed_at: string | null
+          created_at: string
+          currency: string
+          engagement_id: string
+          participant_side: string
+          payment_status: string
+          project_request_id: string
+          request_candidate_id: string
+          started_at: string | null
+          status: string
+          submitted_at: string | null
+          total_count: number
           updated_at: string
         }[]
       }

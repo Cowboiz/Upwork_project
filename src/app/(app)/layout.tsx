@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { GlobalHeader } from "@/components/site/global-header";
 import { requireUser } from "@/lib/auth/user";
-
-const navItems = [
-  { href: "/app", label: "Overview" },
-  { href: "/app#requests", label: "Requests / Projects" },
-  { href: "/app#engagements", label: "Engagements" },
-  { href: "/app#messages", label: "Messages" },
-];
+import { getWorkspaceNavItems } from "@/lib/workspace/roles";
 
 export default async function AppLayout({
   children,
@@ -15,6 +9,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const { user } = await requireUser();
+  const navItems = getWorkspaceNavItems(user.profile.role);
 
   return (
     <div className="min-h-screen bg-slate-50">

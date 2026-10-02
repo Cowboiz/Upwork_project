@@ -24,6 +24,7 @@ export function AccountMenu({
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const initial = displayName.trim().charAt(0).toUpperCase() || "A";
+  const showEmail = email && email !== displayName;
 
   useEffect(() => {
     if (!open) {
@@ -89,7 +90,7 @@ export function AccountMenu({
             <p className="mt-1 truncate text-sm font-bold text-slate-950">
               {displayName}
             </p>
-            {email ? (
+            {showEmail ? (
               <p className="mt-1 truncate text-sm text-slate-600">{email}</p>
             ) : null}
           </div>
