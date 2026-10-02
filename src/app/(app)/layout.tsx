@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { GlobalHeader } from "@/components/site/global-header";
 import { requireUser } from "@/lib/auth/user";
-import { canViewProviderApplications } from "@/lib/workspace/roles";
+import { getWorkspaceNavItems } from "@/lib/workspace/roles";
 
 export default async function AppLayout({
   children,
@@ -9,19 +9,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const { user } = await requireUser();
-  const projectHref = canViewProviderApplications(user.profile.role)
-    ? "/app/provider"
-    : "/app/requests";
-  const projectLabel =
-    user.profile.role === "freelancer"
-      ? "Provider applications"
-      : "Requests / Projects";
-  const navItems = [
-    { href: "/app", label: "Overview" },
-    { href: projectHref, label: projectLabel },
-    { href: "/app/engagements", label: "Engagements" },
-    { href: "/app/messages", label: "Messages" },
-  ];
+  const navItems = getWorkspaceNavItems(user.profile.role);
 
   return (
     <div className="min-h-screen bg-slate-50">

@@ -18,7 +18,8 @@ returns table (
   status text,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  total_count bigint
+  total_count bigint,
+  active_count bigint
 )
 language sql
 stable
@@ -44,7 +45,16 @@ as $$
       project_requests.status,
       project_requests.created_at,
       project_requests.updated_at,
-      count(*) over () as total_count
+      count(*) over () as total_count,
+      count(*) filter (
+        where project_requests.status in (
+          'new',
+          'needs_clarification',
+          'reviewed',
+          'matched',
+          'in_progress'
+        )
+      ) over () as active_count
     from public.project_requests
     where (select auth.uid()) is not null
       and project_requests.linked_student_profile_id = (select auth.uid())
@@ -70,7 +80,8 @@ returns table (
   status text,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  total_count bigint
+  total_count bigint,
+  active_count bigint
 )
 language sql
 stable
@@ -162,7 +173,10 @@ as $$
       project_engagements.completed_at,
       project_engagements.created_at,
       project_engagements.updated_at,
-      count(*) over () as total_count
+      count(*) over () as total_count,
+      count(*) filter (
+        where project_engagements.status in ('agreed', 'in_progress')
+      ) over () as active_count
     from public.project_engagements
     join public.request_candidates
       on request_candidates.id = project_engagements.request_candidate_id

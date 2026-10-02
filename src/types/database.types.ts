@@ -1356,6 +1356,7 @@ export type Database = {
       get_my_project_requests: {
         Args: { p_limit: number; p_offset: number }
         Returns: {
+          active_count: number
           budget_range: string
           category: string
           currency: string
@@ -1389,6 +1390,7 @@ export type Database = {
       get_my_engagements: {
         Args: { p_limit: number; p_offset: number }
         Returns: {
+          active_count: number
           agreed_amount: number
           agreed_deadline: string | null
           category: string

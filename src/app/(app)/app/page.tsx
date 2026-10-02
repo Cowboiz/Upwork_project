@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/user";
+import { getAggregateActiveCount } from "@/lib/workspace/aggregates";
 import {
   getMyEngagements,
   getMyProjectRequests,
@@ -22,14 +23,9 @@ export default async function AppDashboardPage() {
   ]);
 
   const activeRequestCount =
-    requests?.error === null
-      ? requests.rows.filter((request) => request.status !== "completed").length
-      : 0;
+    requests ? getAggregateActiveCount(requests) : 0;
   const activeEngagementCount =
-    engagements.error === null
-      ? engagements.rows.filter((engagement) => engagement.status !== "completed")
-          .length
-      : 0;
+    getAggregateActiveCount(engagements);
   const providerStatus =
     providerApplications?.error === null
       ? providerApplications.rows[0]?.status

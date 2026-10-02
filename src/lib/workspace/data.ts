@@ -23,6 +23,7 @@ export type PaginatedResult<T> =
       pageCount: number;
       rows: T[];
       totalCount: number;
+      activeCount?: number;
     }
   | {
       error: string;
@@ -36,11 +37,17 @@ function toPaginatedResult<T extends { total_count: number }>(
   rows: T[],
   page: number,
   fallbackTotalCount = 0,
+  fallbackActiveCount?: number,
 ): PaginatedResult<T> {
   const totalCount = rows[0]?.total_count ?? fallbackTotalCount;
+  const activeCount =
+    "active_count" in (rows[0] ?? {})
+      ? Number((rows[0] as { active_count?: number }).active_count ?? 0)
+      : fallbackActiveCount;
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return {
+    ...(activeCount === undefined ? {} : { activeCount }),
     error: null,
     page,
     pageCount,
@@ -84,7 +91,12 @@ export async function getMyProjectRequests(
       p_offset: 0,
     });
 
-    return toPaginatedResult(data ?? [], page, firstPage?.[0]?.total_count ?? 0);
+    return toPaginatedResult(
+      data ?? [],
+      page,
+      firstPage?.[0]?.total_count ?? 0,
+      firstPage?.[0]?.active_count ?? 0,
+    );
   }
 
   return toPaginatedResult(data ?? [], page);
@@ -137,7 +149,12 @@ export async function getMyEngagements(
       p_offset: 0,
     });
 
-    return toPaginatedResult(data ?? [], page, firstPage?.[0]?.total_count ?? 0);
+    return toPaginatedResult(
+      data ?? [],
+      page,
+      firstPage?.[0]?.total_count ?? 0,
+      firstPage?.[0]?.active_count ?? 0,
+    );
   }
 
   return toPaginatedResult(data ?? [], page);
