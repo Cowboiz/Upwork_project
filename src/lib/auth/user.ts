@@ -12,6 +12,7 @@ export {
   getCanonicalLoginRedirectForAdminArea,
   getPostLoginRedirect,
   getUserAppRedirectForRole,
+  canUseAppWorkspace,
   isAppUserRole,
   isUserRole,
   normalizeUserRole,
@@ -21,6 +22,7 @@ import {
   getUserAppRedirectForRole,
   isUserRole,
   toAuthenticatedProfile,
+  canUseAppWorkspace,
 } from "./user-shared";
 
 export async function requireUser() {
@@ -35,7 +37,7 @@ export async function requireUser() {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, role, username")
+    .select("id, account_status, full_name, role, username")
     .eq("id", userId)
     .single();
 
@@ -49,6 +51,11 @@ export async function requireUser() {
 
   if (roleRedirect) {
     redirect(roleRedirect);
+  }
+
+  if (!canUseAppWorkspace(profileResult)) {
+    await supabase.auth.signOut();
+    redirect("/login?account_disabled=1");
   }
 
   return {
@@ -76,7 +83,7 @@ export async function requireAccount() {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, role, username")
+    .select("id, account_status, full_name, role, username")
     .eq("id", userId)
     .single();
 
@@ -110,7 +117,7 @@ export async function getOptionalUser() {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, role, username")
+    .select("id, account_status, full_name, role, username")
     .eq("id", userId)
     .single();
 

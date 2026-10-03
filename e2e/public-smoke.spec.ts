@@ -120,6 +120,17 @@ test.describe("public smoke routes", () => {
     ).toBeVisible();
   });
 
+  test("admin users redirects unauthenticated users to canonical login", async ({
+    page,
+  }) => {
+    await page.goto("/admin/users");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+  });
+
   test("project request form renders without submitting", async ({ page }) => {
     await page.goto("/request");
 

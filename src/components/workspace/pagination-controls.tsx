@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { buildPageHref } from "@/lib/workspace/pagination";
+import { buildPageHrefWithParams } from "@/lib/workspace/pagination";
 
 type PaginationControlsProps = {
   page: number;
   pageCount: number;
   pathname: string;
+  searchParams?: URLSearchParams;
 };
 
 export function PaginationControls({
   page,
   pageCount,
   pathname,
+  searchParams,
 }: PaginationControlsProps) {
   const previousDisabled = page <= 1;
   const nextDisabled = page >= pageCount;
@@ -23,7 +25,14 @@ export function PaginationControls({
       {previousDisabled ? (
         <span className="button-secondary opacity-50">Previous</span>
       ) : (
-        <Link className="button-secondary" href={buildPageHref(pathname, page - 1)}>
+        <Link
+          className="button-secondary"
+          href={buildPageHrefWithParams({
+            page: page - 1,
+            pathname,
+            searchParams,
+          })}
+        >
           Previous
         </Link>
       )}
@@ -35,7 +44,14 @@ export function PaginationControls({
       {nextDisabled ? (
         <span className="button-secondary opacity-50">Next</span>
       ) : (
-        <Link className="button-secondary" href={buildPageHref(pathname, page + 1)}>
+        <Link
+          className="button-secondary"
+          href={buildPageHrefWithParams({
+            page: page + 1,
+            pathname,
+            searchParams,
+          })}
+        >
           Next
         </Link>
       )}

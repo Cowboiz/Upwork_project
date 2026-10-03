@@ -4,6 +4,8 @@ import {
   getCanonicalLoginRedirectForAdminArea,
   getPostLoginRedirect,
   getUserAppRedirectForRole,
+  canUseAuthenticatedLogin,
+  canUseAppWorkspace,
   isAppUserRole,
   isUserRole,
   normalizeUserRole,
@@ -33,12 +35,14 @@ describe("normal user auth helpers", () => {
   it("maps an authenticated profile row without trusting client input", () => {
     expect(
       toAuthenticatedProfile({
+        account_status: "active",
         full_name: "Taylor Student",
         id: "profile-id",
         role: "both",
         username: "taylor",
       }),
     ).toEqual({
+      accountStatus: "active",
       fullName: "Taylor Student",
       id: "profile-id",
       role: "both",
@@ -112,6 +116,7 @@ describe("normal user auth helpers", () => {
   it("does not trust an unexpected admin-like role value", () => {
     expect(
       toAuthenticatedProfile({
+        account_status: "active",
         full_name: null,
         id: "profile-id",
         role: "super_admin",
@@ -119,4 +124,43 @@ describe("normal user auth helpers", () => {
       }).role,
     ).toBe("student");
   });
+
+  it("blocks deactivated normal users from the app workspace", () => {
+    expect(
+      canUseAppWorkspace({
+        accountStatus: "active",
+        role: "student",
+      }),
+    ).toBe(true);
+    expect(
+      canUseAppWorkspace({
+        accountStatus: "deactivated",
+        role: "student",
+      }),
+    ).toBe(false);
+    expect(
+      canUseAppWorkspace({
+        accountStatus: "active",
+        role: "admin",
+      }),
+    ).toBe(false);
+  });
+
+  it.each([
+    ["admin", "active", true],
+    ["student", "active", true],
+    ["student", "deactivated", false],
+    ["freelancer", "deactivated", false],
+    ["both", "deactivated", false],
+  ] as const)(
+    "evaluates login eligibility for %s/%s",
+    (role, accountStatus, expected) => {
+      expect(
+        canUseAuthenticatedLogin({
+          accountStatus,
+          role,
+        }),
+      ).toBe(expected);
+    },
+  );
 });

@@ -5,13 +5,17 @@ import {
   linkedProviderProfileIdFor,
   linkedStudentProfileIdFor,
 } from "./ownership";
-import type { AuthenticatedUser, UserRole } from "./user-shared";
+import type { AccountStatus, AuthenticatedUser, UserRole } from "./user-shared";
 
-function userWithRole(role: UserRole): AuthenticatedUser {
+function userWithRole(
+  role: UserRole,
+  accountStatus: AccountStatus = "active",
+): AuthenticatedUser {
   return {
     email: "user@example.test",
     id: `${role}-user-id`,
     profile: {
+      accountStatus,
       fullName: null,
       id: `${role}-profile-id`,
       role,
@@ -56,6 +60,19 @@ describe("ownership role eligibility", () => {
     expect(linkedProviderProfileIdFor(userWithRole("student"))).toBeNull();
     expect(linkedProviderProfileIdFor(userWithRole("admin"))).toBeNull();
     expect(linkedProviderProfileIdFor(null)).toBeNull();
+  });
+
+  it("does not link ownership for deactivated accounts", () => {
+    expect(
+      linkedStudentProfileIdFor(userWithRole("student", "deactivated")),
+    ).toBeNull();
+    expect(
+      linkedProviderProfileIdFor(userWithRole("freelancer", "deactivated")),
+    ).toBeNull();
+    expect(linkedStudentProfileIdFor(userWithRole("both", "deactivated"))).toBeNull();
+    expect(
+      linkedProviderProfileIdFor(userWithRole("both", "deactivated")),
+    ).toBeNull();
   });
 
   it("does not expose an API that accepts client-supplied ownership IDs", () => {

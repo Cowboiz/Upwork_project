@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { PaginationControls } from "@/components/workspace/pagination-controls";
 import { requireAdmin } from "@/lib/admin/auth";
 import { projectCategories } from "@/lib/stage1/options";
+import {
+  getPageCount,
+  normalizePage,
+  pageToOffset,
+  PAGE_SIZE,
+} from "@/lib/workspace/pagination";
 
 const requestStatuses = [
   "new",
@@ -56,10 +63,45 @@ type AdminRequestsPageProps = {
     q?: string;
     status?: string;
     integrity?: string;
+    page?: string | string[];
     category?: string;
     sort?: string;
   }>;
 };
+
+function paginationParams({
+  category,
+  integrity,
+  q,
+  sort,
+  status,
+}: {
+  category?: string;
+  integrity?: string;
+  q?: string;
+  sort: string;
+  status?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+  if (status) {
+    params.set("status", status);
+  }
+  if (integrity) {
+    params.set("integrity", integrity);
+  }
+  if (category) {
+    params.set("category", category);
+  }
+  if (sort !== "newest") {
+    params.set("sort", sort);
+  }
+
+  return params;
+}
 
 export default async function AdminRequestsPage({
   searchParams,
@@ -74,13 +116,16 @@ export default async function AdminRequestsPage({
     projectCategories.map((category) => category.value),
   );
   const selectedSort = validOption(params.sort, sortOptions) ?? "newest";
+  const page = normalizePage(params.page);
 
   let query = supabase
     .from("project_requests")
     .select(
       "id, requester_name, contact_method, contact_value, category, budget_range, currency, status, integrity_review_status, created_at, reviewed_at",
+      { count: "exact" },
     )
-    .order("created_at", { ascending: selectedSort === "oldest" });
+    .order("created_at", { ascending: selectedSort === "oldest" })
+    .range(pageToOffset(page), pageToOffset(page) + PAGE_SIZE - 1);
 
   if (sanitizedQ) {
     const pattern = searchPattern(sanitizedQ);
@@ -98,8 +143,16 @@ export default async function AdminRequestsPage({
     query = query.eq("category", selectedCategory);
   }
 
-  const { data: requests, error } = await query;
-  const requestCount = requests?.length ?? 0;
+  const { count, data: requests, error } = await query;
+  const requestCount = count ?? 0;
+  const pageCount = getPageCount(requestCount);
+  const preservedParams = paginationParams({
+    category: selectedCategory,
+    integrity: selectedIntegrity,
+    q: sanitizedQ,
+    sort: selectedSort,
+    status: selectedStatus,
+  });
 
   return (
     <section>
@@ -269,6 +322,17 @@ export default async function AdminRequestsPage({
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {!error ? (
+        <div className="mt-6">
+          <PaginationControls
+            page={page}
+            pageCount={pageCount}
+            pathname="/admin/requests"
+            searchParams={preservedParams}
+          />
         </div>
       ) : null}
     </section>

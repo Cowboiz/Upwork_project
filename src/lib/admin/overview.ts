@@ -40,6 +40,9 @@ export async function getAdminOverviewData(
     approvedProviders,
     activeEngagements,
     failedEmails,
+    totalUsers,
+    activeUsers,
+    deactivatedUsers,
     recentRequests,
     recentWorkflowEvents,
   ] = await Promise.all([
@@ -63,6 +66,30 @@ export async function getAdminOverviewData(
       .from("email_outbox")
       .select("id", { count: "exact", head: true })
       .eq("status", "failed"),
+    supabase.rpc("admin_list_users", {
+      p_limit: 1,
+      p_offset: 0,
+      p_q: null,
+      p_role: null,
+      p_sort: "newest",
+      p_status: null,
+    }),
+    supabase.rpc("admin_list_users", {
+      p_limit: 1,
+      p_offset: 0,
+      p_q: null,
+      p_role: null,
+      p_sort: "newest",
+      p_status: "active",
+    }),
+    supabase.rpc("admin_list_users", {
+      p_limit: 1,
+      p_offset: 0,
+      p_q: null,
+      p_role: null,
+      p_sort: "newest",
+      p_status: "deactivated",
+    }),
     supabase
       .from("project_requests")
       .select(
@@ -83,6 +110,9 @@ export async function getAdminOverviewData(
     approvedProviders.error,
     activeEngagements.error,
     failedEmails.error,
+    totalUsers.error,
+    activeUsers.error,
+    deactivatedUsers.error,
     recentRequests.error,
     recentWorkflowEvents.error,
   ].filter(Boolean);
@@ -117,6 +147,21 @@ export async function getAdminOverviewData(
         href: "/admin/ops",
         label: "Failed email deliveries",
         value: countOrZero(failedEmails.count),
+      },
+      {
+        href: "/admin/users",
+        label: "Total users",
+        value: totalUsers.data?.[0]?.total_count ?? 0,
+      },
+      {
+        href: "/admin/users?status=active",
+        label: "Active users",
+        value: activeUsers.data?.[0]?.total_count ?? 0,
+      },
+      {
+        href: "/admin/users?status=deactivated",
+        label: "Deactivated users",
+        value: deactivatedUsers.data?.[0]?.total_count ?? 0,
       },
     ],
     recentRequests: (recentRequests.data ?? []) satisfies AdminOverviewRequest[],

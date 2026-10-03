@@ -14,7 +14,7 @@ export type AdminNavItem = {
 
 export const adminNavItems: readonly AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", section: "dashboard" },
-  { disabled: true, href: "/admin/users", label: "Users", section: "users" },
+  { href: "/admin/users", label: "Users", section: "users" },
   { href: "/admin/requests", label: "Requests", section: "requests" },
   { href: "/admin/providers", label: "Providers", section: "providers" },
   { href: "/admin/ops", label: "Ops", section: "ops" },
