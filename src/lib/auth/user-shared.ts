@@ -2,11 +2,14 @@ import type { Database } from "@/types/database.types";
 
 export const USER_ROLES = ["student", "freelancer", "both", "admin"] as const;
 export const APP_USER_ROLES = ["student", "freelancer", "both"] as const;
+export const ACCOUNT_STATUSES = ["active", "deactivated"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 export type AppUserRole = (typeof APP_USER_ROLES)[number];
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 export type AuthenticatedProfile = {
+  accountStatus: AccountStatus;
   id: string;
   fullName: string | null;
   role: UserRole;
@@ -21,7 +24,7 @@ export type AuthenticatedUser = {
 
 export type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
-  "full_name" | "id" | "role" | "username"
+  "account_status" | "full_name" | "id" | "role" | "username"
 >;
 
 const DEFAULT_USER_REDIRECT = "/app";
@@ -30,6 +33,10 @@ const LOCAL_ORIGIN = "https://projectmatch.local";
 
 export function isUserRole(role: string): role is UserRole {
   return USER_ROLES.includes(role as UserRole);
+}
+
+export function isAccountStatus(status: string): status is AccountStatus {
+  return ACCOUNT_STATUSES.includes(status as AccountStatus);
 }
 
 export function isAppUserRole(role: string): role is AppUserRole {
@@ -42,6 +49,24 @@ export function normalizeUserRole(role: string): UserRole {
   }
 
   return "student";
+}
+
+export function normalizeAccountStatus(status: string): AccountStatus {
+  if (isAccountStatus(status)) {
+    return status;
+  }
+
+  return "active";
+}
+
+export function canUseAppWorkspace({
+  accountStatus,
+  role,
+}: {
+  accountStatus: AccountStatus;
+  role: UserRole;
+}) {
+  return role !== "admin" && accountStatus === "active";
 }
 
 export function getPostLoginRedirect(
@@ -100,6 +125,7 @@ export function getCanonicalLoginRedirectForAdminArea() {
 
 export function toAuthenticatedProfile(profile: ProfileRow) {
   return {
+    accountStatus: normalizeAccountStatus(profile.account_status),
     id: profile.id,
     fullName: profile.full_name,
     role: normalizeUserRole(profile.role),

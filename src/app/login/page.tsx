@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  canUseAppWorkspace,
   getPostLoginRedirect,
   toAuthenticatedProfile,
 } from "@/lib/auth/user-shared";
@@ -10,6 +11,7 @@ import { loginUser } from "./actions";
 type LoginPageProps = {
   searchParams: Promise<{
     error?: string;
+    account_disabled?: string;
     next?: string;
   }>;
 };
@@ -24,14 +26,20 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (!claimsError && userId) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, full_name, role, username")
+      .select("id, account_status, full_name, role, username")
       .eq("id", userId)
       .single();
 
     if (profile) {
-      redirect(
-        getPostLoginRedirect(params.next, toAuthenticatedProfile(profile).role),
-      );
+      const authenticatedProfile = toAuthenticatedProfile(profile);
+
+      if (!canUseAppWorkspace(authenticatedProfile)) {
+        await supabase.auth.signOut();
+      } else {
+        redirect(
+          getPostLoginRedirect(params.next, authenticatedProfile.role),
+        );
+      }
     }
   }
 
@@ -56,6 +64,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {params.error ? (
           <div className="notice-error mt-6">{params.error}</div>
+        ) : null}
+
+        {params.account_disabled === "1" ? (
+          <div className="notice-error mt-6">
+            This account is currently disabled. Contact the operator if you need
+            access restored.
+          </div>
         ) : null}
 
         <form action={loginUser} className="mt-6 grid gap-5">

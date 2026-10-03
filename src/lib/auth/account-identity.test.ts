@@ -14,6 +14,7 @@ function account(
     id: "user-id",
     ...accountOverrides,
     profile: {
+      accountStatus: "active",
       fullName: null,
       id: "user-id",
       role: "student",

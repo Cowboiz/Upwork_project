@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  canUseAppWorkspace,
   getPostLoginRedirect,
   isUserRole,
   toAuthenticatedProfile,
@@ -90,7 +91,7 @@ export async function loginUser(formData: FormData) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, role, username")
+    .select("id, account_status, full_name, role, username")
     .eq("id", userId)
     .single();
 
@@ -99,9 +100,16 @@ export async function loginUser(formData: FormData) {
     loginErrorRedirect("We could not verify your account. Please try again.");
   }
 
+  const authenticatedProfile = toAuthenticatedProfile(profile);
+
+  if (!canUseAppWorkspace(authenticatedProfile)) {
+    await supabase.auth.signOut();
+    redirect("/login?account_disabled=1");
+  }
+
   const safeRedirect = getPostLoginRedirect(
     parsed.data.redirectTo,
-    toAuthenticatedProfile(profile).role,
+    authenticatedProfile.role,
   );
 
   redirect(safeRedirect);

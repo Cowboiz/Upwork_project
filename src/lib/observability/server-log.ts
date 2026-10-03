@@ -58,6 +58,12 @@ export type WorkspaceDataResource =
   | "project_requests"
   | "provider_applications";
 
+export type AdminUserAuditEvent =
+  | "admin_user_deactivated"
+  | "admin_user_deleted"
+  | "admin_user_reactivated"
+  | "admin_user_updated";
+
 function writeStructuredLog(
   level: "error" | "warn",
   entry: Record<string, unknown>,
@@ -222,5 +228,26 @@ export function logWorkspaceDataLoadFailed(resource: WorkspaceDataResource) {
       resource,
     },
     `{"level":"error","event":"workspace_data_load_failed","resource":"${resource}"}`,
+  );
+}
+
+export function logAdminUserAudit({
+  actorUserId,
+  event,
+  targetUserId,
+}: {
+  actorUserId: string;
+  event: AdminUserAuditEvent;
+  targetUserId: string;
+}) {
+  writeStructuredLog(
+    "warn",
+    {
+      level: "warn",
+      event,
+      actorUserId,
+      targetUserId,
+    },
+    `{"level":"warn","event":"${event}"}`,
   );
 }

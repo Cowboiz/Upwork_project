@@ -24,3 +24,19 @@ export function buildPageHref(pathname: string, page: number) {
 
   return `${pathname}?${params.toString()}`;
 }
+
+export function buildPageHrefWithParams({
+  page,
+  pathname,
+  searchParams,
+}: {
+  page: number;
+  pathname: string;
+  searchParams?: URLSearchParams;
+}) {
+  const params = new URLSearchParams(searchParams);
+
+  params.set("page", String(Math.max(page, 1)));
+
+  return `${pathname}?${params.toString()}`;
+}

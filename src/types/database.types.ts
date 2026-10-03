@@ -536,6 +536,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_status: string
           avatar_url: string | null
           bio: string | null
           created_at: string
@@ -548,6 +549,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          account_status?: string
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -560,6 +562,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          account_status?: string
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -1327,6 +1330,49 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          account_status: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          last_sign_in_at: string | null
+          role: string
+          updated_at: string
+          username: string | null
+        }[]
+      }
+      admin_list_users: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_q?: string | null
+          p_role?: string | null
+          p_sort?: string
+          p_status?: string | null
+        }
+        Returns: {
+          account_status: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          last_sign_in_at: string | null
+          role: string
+          total_count: number
+          updated_at: string
+          username: string | null
+        }[]
+      }
+      admin_user_business_history: {
+        Args: { p_user_id: string }
+        Returns: {
+          has_history: boolean
+          protected_reference_count: number
+        }[]
+      }
       accept_request_candidate: {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined

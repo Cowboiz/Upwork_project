@@ -12,6 +12,7 @@ function userWithRole(role: UserRole): AuthenticatedUser {
     email: "user@example.test",
     id: `${role}-user-id`,
     profile: {
+      accountStatus: "active",
       fullName: null,
       id: `${role}-profile-id`,
       role,
