@@ -3,6 +3,7 @@ import { StatusBadge } from "@/components/workspace/status-badge";
 import type { EngagementSummary, PaginatedResult } from "@/lib/workspace/data";
 import { mapParticipantSide } from "@/lib/workspace/roles";
 import { formatCurrency, formatDate } from "@/lib/workspace/status";
+import Link from "next/link";
 
 type EngagementListProps = {
   result: PaginatedResult<EngagementSummary>;
@@ -74,6 +75,14 @@ export function EngagementList({ result }: EngagementListProps) {
                 </dd>
               </div>
             </dl>
+            <div className="mt-4">
+              <Link
+                className="font-bold text-blue-700"
+                href={`/app/messages/${engagement.engagement_id}`}
+              >
+                Messages
+              </Link>
+            </div>
           </article>
         ))}
       </div>

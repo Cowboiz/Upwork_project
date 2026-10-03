@@ -17,6 +17,7 @@ describe("workspace pagination", () => {
     ["0", 1],
     ["-1", 1],
     ["abc", 1],
+    ["999", 999],
     ["2", 2],
     [["3"], 3],
   ] as const)("normalizes %j to page %i", (input, expected) => {

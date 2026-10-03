@@ -58,6 +58,8 @@ export type WorkspaceDataResource =
   | "project_requests"
   | "provider_applications";
 
+export type EngagementChatStage = "messages" | "send" | "thread" | "threads";
+
 export type AdminUserAuditEvent =
   | "admin_user_deactivated"
   | "admin_user_deleted"
@@ -228,6 +230,44 @@ export function logWorkspaceDataLoadFailed(resource: WorkspaceDataResource) {
       resource,
     },
     `{"level":"error","event":"workspace_data_load_failed","resource":"${resource}"}`,
+  );
+}
+
+export function logEngagementChatLoadFailed({
+  engagementId,
+  stage,
+}: {
+  engagementId?: string;
+  stage: EngagementChatStage;
+}) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "engagement_chat_load_failed",
+      stage,
+      ...(engagementId === undefined ? {} : { engagementId }),
+    },
+    `{"level":"error","event":"engagement_chat_load_failed","stage":"${stage}"}`,
+  );
+}
+
+export function logEngagementMessageSendFailed({
+  engagementId,
+  stage,
+}: {
+  engagementId: string;
+  stage: string;
+}) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "engagement_message_send_failed",
+      engagementId,
+      stage,
+    },
+    '{"level":"error","event":"engagement_message_send_failed"}',
   );
 }
 
