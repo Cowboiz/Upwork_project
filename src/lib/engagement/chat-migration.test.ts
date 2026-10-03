@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const sendFixMigration = readFileSync(
+  join(
+    process.cwd(),
+    "supabase/migrations/20261003084920_phase5_engagement_chat_send_fix.sql",
+  ),
+  "utf8",
+);
 
 describe("engagement chat migration", () => {
   it("creates engagement-scoped messages without broad authenticated table access", () => {
@@ -49,7 +56,9 @@ describe("engagement chat migration", () => {
     expect(migration).toContain(
       "authorized.engagement_status in ('agreed', 'in_progress', 'submitted')",
     );
-    expect(migration).toContain("on conflict (sender_profile_id, client_message_id)");
+    expect(migration).toContain(
+      "constraint engagement_messages_sender_client_message_key",
+    );
   });
 
   it("does not broaden legacy conversations or messages ACLs", () => {
@@ -60,5 +69,25 @@ describe("engagement chat migration", () => {
     expect(migration).not.toMatch(/grant\s+.*\s+on\s+table\s+public\.messages/i);
     expect(migration).not.toMatch(/create policy .* on public\.conversations/i);
     expect(migration).not.toMatch(/create policy .* on public\.messages/i);
+  });
+
+  it("repairs send-message idempotency without ambiguous conflict column names", () => {
+    expect(sendFixMigration).not.toContain(
+      "on conflict (sender_profile_id, client_message_id)",
+    );
+    expect(sendFixMigration).toContain(
+      "on conflict on constraint engagement_messages_sender_client_message_key",
+    );
+    expect(sendFixMigration).toContain("do nothing");
+    expect(sendFixMigration).toContain("from public.engagement_messages as em");
+    expect(sendFixMigration).toContain("em.sender_profile_id = v_sender_id");
+    expect(sendFixMigration).toContain(
+      "em.client_message_id = p_client_message_id",
+    );
+    expect(sendFixMigration).toContain(
+      "em.project_engagement_id = p_engagement_id",
+    );
+    expect(sendFixMigration).toContain("v_sender_id := auth.uid()");
+    expect(sendFixMigration).not.toContain("p_sender_profile_id");
   });
 });
