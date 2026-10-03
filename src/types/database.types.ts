@@ -300,6 +300,48 @@ export type Database = {
           },
         ]
       }
+      engagement_messages: {
+        Row: {
+          body: string
+          client_message_id: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }
+        Insert: {
+          body: string
+          client_message_id: string
+          created_at?: string
+          id?: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }
+        Update: {
+          body?: string
+          client_message_id?: string
+          created_at?: string
+          id?: string
+          project_engagement_id?: string
+          sender_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_messages_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_messages_sender_profile_id_fkey"
+            columns: ["sender_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -1399,6 +1441,51 @@ export type Database = {
         Args: { p_dispute_notes: string; p_token_id: string }
         Returns: string
       }
+      get_engagement_messages: {
+        Args: {
+          p_engagement_id: string
+          p_limit: number
+          p_offset: number
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_display_name: string
+          sender_profile_id: string
+          total_count: number
+        }[]
+      }
+      get_engagement_thread: {
+        Args: { p_engagement_id: string }
+        Returns: {
+          can_send: boolean
+          category: string
+          counterparty_display_name: string
+          created_at: string
+          engagement_id: string
+          engagement_status: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          participant_side: string
+        }[]
+      }
+      get_my_engagement_threads: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          can_send: boolean
+          category: string
+          counterparty_display_name: string
+          created_at: string
+          engagement_id: string
+          engagement_status: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          participant_side: string
+          total_count: number
+        }[]
+      }
       get_my_project_requests: {
         Args: { p_limit: number; p_offset: number }
         Returns: {
@@ -1488,6 +1575,20 @@ export type Database = {
       submit_engagement_feedback: {
         Args: { p_feedback_text: string; p_rating: number; p_token_id: string }
         Returns: string
+      }
+      send_engagement_message: {
+        Args: {
+          p_body: string
+          p_client_message_id: string
+          p_engagement_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }[]
       }
       update_my_profile: {
         Args: { p_full_name: string; p_username: string }
