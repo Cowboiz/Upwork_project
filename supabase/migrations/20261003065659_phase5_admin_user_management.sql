@@ -9,6 +9,45 @@ alter table public.profiles
 create index if not exists profiles_account_status_idx
   on public.profiles using btree (account_status);
 
+create or replace function public.prevent_generic_admin_account_lifecycle_change()
+  returns trigger
+  language plpgsql
+  set search_path = ''
+as $function$
+begin
+  if old.role = 'admin' then
+    if tg_op = 'DELETE' then
+      raise exception 'Admin accounts cannot be deleted through generic user management';
+    end if;
+
+    if new.role <> 'admin' then
+      raise exception 'Admin accounts cannot be demoted through generic user management';
+    end if;
+
+    if new.account_status <> 'active' then
+      raise exception 'Admin accounts cannot be deactivated through generic user management';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists prevent_generic_admin_account_lifecycle_change on public.profiles;
+
+create trigger prevent_generic_admin_account_lifecycle_change
+  before update or delete on public.profiles
+  for each row
+  execute function public.prevent_generic_admin_account_lifecycle_change();
+
+revoke all on function public.prevent_generic_admin_account_lifecycle_change() from public;
+revoke all on function public.prevent_generic_admin_account_lifecycle_change() from anon;
+revoke all on function public.prevent_generic_admin_account_lifecycle_change() from authenticated;
+
 create or replace function public.admin_list_users(
   p_q text default null,
   p_role text default null,

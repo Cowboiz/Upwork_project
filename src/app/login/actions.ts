@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
-  canUseAppWorkspace,
+  canUseAuthenticatedLogin,
   getPostLoginRedirect,
   isUserRole,
   toAuthenticatedProfile,
@@ -102,7 +102,7 @@ export async function loginUser(formData: FormData) {
 
   const authenticatedProfile = toAuthenticatedProfile(profile);
 
-  if (!canUseAppWorkspace(authenticatedProfile)) {
+  if (!canUseAuthenticatedLogin(authenticatedProfile)) {
     await supabase.auth.signOut();
     redirect("/login?account_disabled=1");
   }

@@ -4,6 +4,7 @@ import {
   getCanonicalLoginRedirectForAdminArea,
   getPostLoginRedirect,
   getUserAppRedirectForRole,
+  canUseAuthenticatedLogin,
   canUseAppWorkspace,
   isAppUserRole,
   isUserRole,
@@ -144,4 +145,22 @@ describe("normal user auth helpers", () => {
       }),
     ).toBe(false);
   });
+
+  it.each([
+    ["admin", "active", true],
+    ["student", "active", true],
+    ["student", "deactivated", false],
+    ["freelancer", "deactivated", false],
+    ["both", "deactivated", false],
+  ] as const)(
+    "evaluates login eligibility for %s/%s",
+    (role, accountStatus, expected) => {
+      expect(
+        canUseAuthenticatedLogin({
+          accountStatus,
+          role,
+        }),
+      ).toBe(expected);
+    },
+  );
 });

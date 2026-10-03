@@ -9,7 +9,11 @@ export function canOwnProviderApplication(role: UserRole) {
 }
 
 export function linkedStudentProfileIdFor(user: AuthenticatedUser | null) {
-  if (!user || !canOwnProjectRequest(user.profile.role)) {
+  if (
+    !user ||
+    user.profile.accountStatus !== "active" ||
+    !canOwnProjectRequest(user.profile.role)
+  ) {
     return null;
   }
 
@@ -17,7 +21,11 @@ export function linkedStudentProfileIdFor(user: AuthenticatedUser | null) {
 }
 
 export function linkedProviderProfileIdFor(user: AuthenticatedUser | null) {
-  if (!user || !canOwnProviderApplication(user.profile.role)) {
+  if (
+    !user ||
+    user.profile.accountStatus !== "active" ||
+    !canOwnProviderApplication(user.profile.role)
+  ) {
     return null;
   }
 

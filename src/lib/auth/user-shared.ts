@@ -69,6 +69,15 @@ export function canUseAppWorkspace({
   return role !== "admin" && accountStatus === "active";
 }
 
+export function canUseAuthenticatedLogin({
+  accountStatus,
+}: {
+  accountStatus: AccountStatus;
+  role: UserRole;
+}) {
+  return accountStatus === "active";
+}
+
 export function getPostLoginRedirect(
   rawRedirectTo: FormDataEntryValue | null | undefined,
   role: UserRole,

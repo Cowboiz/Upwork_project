@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  canUseAppWorkspace,
+  canUseAuthenticatedLogin,
   getPostLoginRedirect,
   toAuthenticatedProfile,
 } from "@/lib/auth/user-shared";
@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     if (profile) {
       const authenticatedProfile = toAuthenticatedProfile(profile);
 
-      if (!canUseAppWorkspace(authenticatedProfile)) {
+      if (!canUseAuthenticatedLogin(authenticatedProfile)) {
         await supabase.auth.signOut();
       } else {
         redirect(

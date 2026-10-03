@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
   adminUserSearchParamsForPagination,
+  type AdminUserRow,
   canHardDeleteUser,
   canMutateAdminTarget,
+  getAdminUsers,
   normalizeProfileUpdateInput,
   parseAdminUserQuery,
+  toAdminUserListResult,
 } from "./user-management";
+
+function userRow(overrides: Partial<AdminUserRow> = {}): AdminUserRow {
+  return {
+    account_status: "active",
+    created_at: "2026-10-01T00:00:00.000Z",
+    email: "user@example.test",
+    full_name: "Project User",
+    id: "user-id",
+    last_sign_in_at: null,
+    role: "student",
+    total_count: 1,
+    updated_at: "2026-10-01T00:00:00.000Z",
+    username: "project-user",
+    ...overrides,
+  };
+}
 
 describe("admin user management policy", () => {
   it("protects admin targets from destructive generic management", () => {
@@ -102,5 +121,64 @@ describe("admin user pagination filters", () => {
     expect(adminUserSearchParamsForPagination(query).toString()).toBe(
       "q=tai&role=student&status=active&sort=oldest",
     );
+  });
+
+  it.each([
+    [0, 1],
+    [1, 1],
+    [10, 1],
+    [11, 2],
+  ])("calculates page count for %i admin users", (totalCount, pageCount) => {
+    const users =
+      totalCount === 0 ? [] : [userRow({ total_count: totalCount })];
+
+    expect(
+      toAdminUserListResult({
+        error: false,
+        page: 1,
+        users,
+      }),
+    ).toMatchObject({
+      page: 1,
+      pageCount,
+      totalCount,
+    });
+  });
+
+  it("retries page one for out-of-range admin user pages", async () => {
+    const rpcCalls: unknown[] = [];
+    const supabase = {
+      rpc: async (_name: string, args: { p_offset: number }) => {
+        rpcCalls.push(args);
+
+        if (args.p_offset > 0) {
+          return { data: [], error: null };
+        }
+
+        return {
+          data: [userRow({ total_count: 11 })],
+          error: null,
+        };
+      },
+    };
+
+    await expect(
+      getAdminUsers(
+        supabase as never,
+        parseAdminUserQuery({
+          page: "999",
+        }),
+      ),
+    ).resolves.toMatchObject({
+      page: 1,
+      pageCount: 2,
+      totalCount: 11,
+      users: [expect.objectContaining({ id: "user-id" })],
+    });
+
+    expect(rpcCalls).toEqual([
+      expect.objectContaining({ p_offset: 9980 }),
+      expect.objectContaining({ p_offset: 0 }),
+    ]);
   });
 });

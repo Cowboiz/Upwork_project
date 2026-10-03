@@ -50,6 +50,11 @@ export type AdminUserListResult = {
   users: AdminUserRow[];
 };
 
+export type AdminUserRpcPage = {
+  error: boolean;
+  users: AdminUserRow[];
+};
+
 export type AdminUserUpdateInput = {
   accountStatus: AccountStatus;
   fullName: string | null;
@@ -180,39 +185,81 @@ export function canHardDeleteUser({
   return role !== "admin" && !hasHistory;
 }
 
-export async function getAdminUsers(
-  supabase: Supabase,
-  query: AdminUserQuery,
-): Promise<AdminUserListResult> {
-  const { data, error } = await supabase.rpc("admin_list_users", {
-    p_limit: PAGE_SIZE,
-    p_offset: pageToOffset(query.page),
-    p_q: query.q,
-    p_role: query.role === "all" ? null : query.role,
-    p_sort: query.sort,
-    p_status: query.status === "all" ? null : query.status,
-  });
-
+export function toAdminUserListResult({
+  error,
+  page,
+  users,
+}: {
+  error: boolean;
+  page: number;
+  users: AdminUserRow[];
+}): AdminUserListResult {
   if (error) {
     return {
       error: true,
-      page: query.page,
+      page,
       pageCount: 1,
       totalCount: 0,
       users: [],
     };
   }
 
-  const users = data ?? [];
   const totalCount = users[0]?.total_count ?? 0;
 
   return {
     error: false,
-    page: query.page,
+    page,
     pageCount: getPageCount(totalCount),
     totalCount,
     users,
   };
+}
+
+async function getAdminUsersPage(
+  supabase: Supabase,
+  query: AdminUserQuery,
+  page: number,
+): Promise<AdminUserRpcPage> {
+  const { data, error } = await supabase.rpc("admin_list_users", {
+    p_limit: PAGE_SIZE,
+    p_offset: pageToOffset(page),
+    p_q: query.q,
+    p_role: query.role === "all" ? null : query.role,
+    p_sort: query.sort,
+    p_status: query.status === "all" ? null : query.status,
+  });
+
+  return {
+    error: Boolean(error),
+    users: data ?? [],
+  };
+}
+
+export async function getAdminUsers(
+  supabase: Supabase,
+  query: AdminUserQuery,
+): Promise<AdminUserListResult> {
+  const requestedPage = await getAdminUsersPage(supabase, query, query.page);
+
+  if (
+    query.page > 1 &&
+    !requestedPage.error &&
+    requestedPage.users.length === 0
+  ) {
+    const firstPage = await getAdminUsersPage(supabase, query, 1);
+
+    return toAdminUserListResult({
+      error: firstPage.error,
+      page: 1,
+      users: firstPage.users,
+    });
+  }
+
+  return toAdminUserListResult({
+    error: requestedPage.error,
+    page: query.page,
+    users: requestedPage.users,
+  });
 }
 
 export async function getAdminUser(
