@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { submitProjectRequest } from "./actions";
+import { linkedStudentProfileIdFor } from "@/lib/auth/ownership";
+import { getOptionalUser } from "@/lib/auth/user";
 import { budgetRanges, contactMethods, projectCategories } from "@/lib/stage1/options";
 
 type RequestPageProps = {
@@ -15,6 +17,9 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
   const submitted = params.submitted === "1";
   const error = params.error;
   const intakeSubmissionId = randomUUID();
+  const linkedStudentProfileId = linkedStudentProfileIdFor(
+    await getOptionalUser(),
+  );
 
   return (
     <main className="page-shell py-8">
@@ -49,6 +54,12 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
           ) : null}
 
           {error ? <div className="notice-error mb-6">{error}</div> : null}
+
+          {linkedStudentProfileId ? (
+            <div className="notice-info mb-6">
+              This request will be linked to your ProjectMatch account.
+            </div>
+          ) : null}
 
           <form action={submitProjectRequest} className="grid gap-5">
             <input

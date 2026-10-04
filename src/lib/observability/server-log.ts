@@ -17,10 +17,12 @@ type RequestErrorLogEntry = {
 
 export type RateLimitAction =
   | "admin_login_ip"
+  | "account_register_ip"
   | "project_request_submit_contact"
   | "project_request_submit_ip"
   | "provider_application_submit_contact"
-  | "provider_application_submit_ip";
+  | "provider_application_submit_ip"
+  | "user_login_ip";
 
 export type IntakeKind = "project_request" | "provider_application";
 export type IntakeOperationStage = "idempotency_lookup" | "insert" | "rate_limit";
@@ -50,6 +52,19 @@ export type EmailPipelineNotification =
   | "provider_contacted"
   | "project_request_submitted"
   | "shortlist_presented";
+
+export type WorkspaceDataResource =
+  | "engagements"
+  | "project_requests"
+  | "provider_applications";
+
+export type EngagementChatStage = "messages" | "send" | "thread" | "threads";
+
+export type AdminUserAuditEvent =
+  | "admin_user_deactivated"
+  | "admin_user_deleted"
+  | "admin_user_reactivated"
+  | "admin_user_updated";
 
 function writeStructuredLog(
   level: "error" | "warn",
@@ -203,5 +218,76 @@ export function logEmailPipelineFailed(
       notification,
     },
     `{"level":"error","event":"email_pipeline_failed","notification":"${notification}"}`,
+  );
+}
+
+export function logWorkspaceDataLoadFailed(resource: WorkspaceDataResource) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "workspace_data_load_failed",
+      resource,
+    },
+    `{"level":"error","event":"workspace_data_load_failed","resource":"${resource}"}`,
+  );
+}
+
+export function logEngagementChatLoadFailed({
+  engagementId,
+  stage,
+}: {
+  engagementId?: string;
+  stage: EngagementChatStage;
+}) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "engagement_chat_load_failed",
+      stage,
+      ...(engagementId === undefined ? {} : { engagementId }),
+    },
+    `{"level":"error","event":"engagement_chat_load_failed","stage":"${stage}"}`,
+  );
+}
+
+export function logEngagementMessageSendFailed({
+  engagementId,
+  stage,
+}: {
+  engagementId: string;
+  stage: string;
+}) {
+  writeStructuredLog(
+    "error",
+    {
+      level: "error",
+      event: "engagement_message_send_failed",
+      engagementId,
+      stage,
+    },
+    '{"level":"error","event":"engagement_message_send_failed"}',
+  );
+}
+
+export function logAdminUserAudit({
+  actorUserId,
+  event,
+  targetUserId,
+}: {
+  actorUserId: string;
+  event: AdminUserAuditEvent;
+  targetUserId: string;
+}) {
+  writeStructuredLog(
+    "warn",
+    {
+      level: "warn",
+      event,
+      actorUserId,
+      targetUserId,
+    },
+    `{"level":"warn","event":"${event}"}`,
   );
 }

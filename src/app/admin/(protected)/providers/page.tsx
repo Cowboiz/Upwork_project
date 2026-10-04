@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { PaginationControls } from "@/components/workspace/pagination-controls";
 import { requireAdmin } from "@/lib/admin/auth";
 import { contactMethods } from "@/lib/stage1/options";
+import {
+  getPageCount,
+  normalizePage,
+  pageToOffset,
+  PAGE_SIZE,
+} from "@/lib/workspace/pagination";
 
 const providerStatuses = [
   "new",
@@ -55,9 +62,39 @@ type AdminProvidersPageProps = {
     q?: string;
     status?: string;
     contact_method?: string;
+    page?: string | string[];
     sort?: string;
   }>;
 };
+
+function paginationParams({
+  contactMethod,
+  q,
+  sort,
+  status,
+}: {
+  contactMethod?: string;
+  q?: string;
+  sort: string;
+  status?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (q) {
+    params.set("q", q);
+  }
+  if (status) {
+    params.set("status", status);
+  }
+  if (contactMethod) {
+    params.set("contact_method", contactMethod);
+  }
+  if (sort !== "newest") {
+    params.set("sort", sort);
+  }
+
+  return params;
+}
 
 export default async function AdminProvidersPage({
   searchParams,
@@ -71,13 +108,16 @@ export default async function AdminProvidersPage({
     contactMethods.map((method) => method.value),
   );
   const selectedSort = validOption(params.sort, sortOptions) ?? "newest";
+  const page = normalizePage(params.page);
 
   let query = supabase
     .from("provider_applications")
     .select(
       "id, applicant_name, contact_method, contact_value, skills, preferred_project_types, availability, rate_expectations, status, created_at",
+      { count: "exact" },
     )
-    .order("created_at", { ascending: selectedSort === "oldest" });
+    .order("created_at", { ascending: selectedSort === "oldest" })
+    .range(pageToOffset(page), pageToOffset(page) + PAGE_SIZE - 1);
 
   if (sanitizedQ) {
     const pattern = searchPattern(sanitizedQ);
@@ -92,8 +132,15 @@ export default async function AdminProvidersPage({
     query = query.eq("contact_method", selectedContactMethod);
   }
 
-  const { data: providers, error } = await query;
-  const providerCount = providers?.length ?? 0;
+  const { count, data: providers, error } = await query;
+  const providerCount = count ?? 0;
+  const pageCount = getPageCount(providerCount);
+  const preservedParams = paginationParams({
+    contactMethod: selectedContactMethod,
+    q: sanitizedQ,
+    sort: selectedSort,
+    status: selectedStatus,
+  });
 
   return (
     <section>
@@ -252,6 +299,17 @@ export default async function AdminProvidersPage({
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {!error ? (
+        <div className="mt-6">
+          <PaginationControls
+            page={page}
+            pageCount={pageCount}
+            pathname="/admin/providers"
+            searchParams={preservedParams}
+          />
         </div>
       ) : null}
     </section>

@@ -300,6 +300,48 @@ export type Database = {
           },
         ]
       }
+      engagement_messages: {
+        Row: {
+          body: string
+          client_message_id: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }
+        Insert: {
+          body: string
+          client_message_id: string
+          created_at?: string
+          id?: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }
+        Update: {
+          body?: string
+          client_message_id?: string
+          created_at?: string
+          id?: string
+          project_engagement_id?: string
+          sender_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_messages_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_messages_sender_profile_id_fkey"
+            columns: ["sender_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -536,6 +578,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_status: string
           avatar_url: string | null
           bio: string | null
           created_at: string
@@ -548,6 +591,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          account_status?: string
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -560,6 +604,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          account_status?: string
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -1327,6 +1372,49 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          account_status: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          last_sign_in_at: string | null
+          role: string
+          updated_at: string
+          username: string | null
+        }[]
+      }
+      admin_list_users: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_q?: string | null
+          p_role?: string | null
+          p_sort?: string
+          p_status?: string | null
+        }
+        Returns: {
+          account_status: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          last_sign_in_at: string | null
+          role: string
+          total_count: number
+          updated_at: string
+          username: string | null
+        }[]
+      }
+      admin_user_business_history: {
+        Args: { p_user_id: string }
+        Returns: {
+          has_history: boolean
+          protected_reference_count: number
+        }[]
+      }
       accept_request_candidate: {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: undefined
@@ -1352,6 +1440,107 @@ export type Database = {
       dispute_engagement: {
         Args: { p_dispute_notes: string; p_token_id: string }
         Returns: string
+      }
+      get_engagement_messages: {
+        Args: {
+          p_engagement_id: string
+          p_limit: number
+          p_offset: number
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_display_name: string
+          sender_profile_id: string
+          total_count: number
+        }[]
+      }
+      get_engagement_thread: {
+        Args: { p_engagement_id: string }
+        Returns: {
+          can_send: boolean
+          category: string
+          counterparty_display_name: string
+          created_at: string
+          engagement_id: string
+          engagement_status: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          participant_side: string
+        }[]
+      }
+      get_my_engagement_threads: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          can_send: boolean
+          category: string
+          counterparty_display_name: string
+          created_at: string
+          engagement_id: string
+          engagement_status: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          participant_side: string
+          total_count: number
+        }[]
+      }
+      get_my_project_requests: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          active_count: number
+          budget_range: string
+          category: string
+          currency: string
+          created_at: string
+          deadline: string | null
+          deadline_flexible: boolean
+          description: string
+          desired_deliverables: string | null
+          id: string
+          integrity_review_status: string
+          status: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
+      get_my_provider_applications: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          applicant_name: string
+          availability: string
+          created_at: string
+          id: string
+          preferred_project_types: string[]
+          rate_expectations: string
+          skills: string[]
+          status: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
+      get_my_engagements: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: {
+          active_count: number
+          agreed_amount: number
+          agreed_deadline: string | null
+          category: string
+          completed_at: string | null
+          created_at: string
+          currency: string
+          engagement_id: string
+          participant_side: string
+          payment_status: string
+          project_request_id: string
+          request_candidate_id: string
+          started_at: string | null
+          status: string
+          submitted_at: string | null
+          total_count: number
+          updated_at: string
+        }[]
       }
       is_admin: { Args: never; Returns: boolean }
       mark_request_candidate_contacted: {
@@ -1386,6 +1575,30 @@ export type Database = {
       submit_engagement_feedback: {
         Args: { p_feedback_text: string; p_rating: number; p_token_id: string }
         Returns: string
+      }
+      send_engagement_message: {
+        Args: {
+          p_body: string
+          p_client_message_id: string
+          p_engagement_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          project_engagement_id: string
+          sender_profile_id: string
+        }[]
+      }
+      update_my_profile: {
+        Args: { p_full_name: string; p_username: string }
+        Returns: {
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string
+          username: string | null
+        }[]
       }
       update_project_engagement_status: {
         Args: {
