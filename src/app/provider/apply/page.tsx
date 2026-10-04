@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { linkedProviderProfileIdFor } from "@/lib/auth/ownership";
+import { getOptionalUser } from "@/lib/auth/user";
 import { contactMethods, providerSkills } from "@/lib/stage1/options";
 import { submitProviderApplication } from "./actions";
 
@@ -17,6 +19,9 @@ export default async function ProviderApplyPage({
   const submitted = params.submitted === "1";
   const error = params.error;
   const intakeSubmissionId = randomUUID();
+  const linkedProviderProfileId = linkedProviderProfileIdFor(
+    await getOptionalUser(),
+  );
 
   return (
     <main className="page-shell py-8">
@@ -51,6 +56,12 @@ export default async function ProviderApplyPage({
           ) : null}
 
           {error ? <div className="notice-error mb-6">{error}</div> : null}
+
+          {linkedProviderProfileId ? (
+            <div className="notice-info mb-6">
+              This application will be linked to your ProjectMatch account.
+            </div>
+          ) : null}
 
           <form action={submitProviderApplication} className="grid gap-5">
             <input

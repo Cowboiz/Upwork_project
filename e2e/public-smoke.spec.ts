@@ -18,19 +18,116 @@ test.describe("public smoke routes", () => {
     });
   });
 
-  test("home page renders ProjectMatch and public entry points", async ({
+  test("home page renders ProjectMatch landing and public entry points", async ({
     page,
   }) => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "ProjectMatch" }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Find the right reviewed provider without opening a public bid.",
+      }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Submit project request" }),
+      page.getByRole("link", { name: "Submit project request" }).first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Apply as provider" }),
+      page.getByRole("link", { name: "Apply as provider" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Create account" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "A reviewed path from request to delivery" }),
+    ).toBeVisible();
+  });
+
+  test("normal user login renders without authenticating", async ({ page }) => {
+    await page.goto("/login");
+
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Create an account" }),
+    ).toBeVisible();
+  });
+
+  test("registration page renders normal account options", async ({ page }) => {
+    await page.goto("/register");
+
+    await expect(
+      page.getByRole("heading", { name: "Create account" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Full name")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Account type")).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Confirm password")).toBeVisible();
+    await expect(
+      page.locator('select[name="accountRole"] option'),
+    ).toHaveText(["Requester", "Provider", "Requester and provider"]);
+    await expect(page.getByText("admin")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  });
+
+  test("app dashboard redirects unauthenticated users to login", async ({
+    page,
+  }) => {
+    await page.goto("/app");
+
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("workspace data routes redirect unauthenticated users to login", async ({
+    page,
+  }) => {
+    for (const path of [
+      "/app/requests?page=0",
+      "/app/provider?page=abc",
+      "/app/engagements?page=-1",
+      "/app/messages",
+    ]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login$/);
+    }
+  });
+
+  test("admin login redirects unauthenticated users to canonical login", async ({
+    page,
+  }) => {
+    await page.goto("/admin/login");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+  });
+
+  test("admin dashboard redirects unauthenticated users to canonical login", async ({
+    page,
+  }) => {
+    await page.goto("/admin");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
+    ).toBeVisible();
+  });
+
+  test("admin users redirects unauthenticated users to canonical login", async ({
+    page,
+  }) => {
+    await page.goto("/admin/users");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in" }),
     ).toBeVisible();
   });
 
@@ -60,15 +157,16 @@ test.describe("public smoke routes", () => {
     ).toBeVisible();
   });
 
-  test("admin login renders without authenticating", async ({ page }) => {
+  test("admin login no longer renders a second credential form", async ({
+    page,
+  }) => {
     await page.goto("/admin/login");
 
-    await expect(
-      page.getByRole("heading", { name: "Sign in" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Frequests$/);
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(page.locator("form")).toHaveCount(1);
   });
 
   test("student engagement route handles an invalid bearer token safely", async ({

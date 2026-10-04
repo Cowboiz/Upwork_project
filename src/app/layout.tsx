@@ -4,9 +4,9 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ProjectMatch",
+  title: "ProjectMatch | Curated matching for legitimate digital projects",
   description:
-    "A manual matching service for legitimate student digital projects.",
+    "ProjectMatch manually reviews legitimate digital project requests and curates provider matches for websites, prototypes, design, and automation work.",
 };
 
 export default function RootLayout({
