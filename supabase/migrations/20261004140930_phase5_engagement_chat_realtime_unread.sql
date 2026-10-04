@@ -45,38 +45,58 @@ revoke all on table public.engagement_message_reads from anon, authenticated;
 
 grant select on table public.engagement_messages to authenticated;
 
+create or replace function public.can_access_engagement_chat(p_engagement_id uuid)
+  returns boolean
+  language sql
+  security definer
+  stable
+  set search_path = ''
+as $function$
+  with current_profile as (
+    select profiles.id
+    from public.profiles
+    where profiles.id = (select auth.uid())
+      and profiles.account_status = 'active'
+      and profiles.role in ('student', 'freelancer', 'both')
+  ),
+  engagement_participants as (
+    select
+      public.project_requests.linked_student_profile_id as student_profile_id,
+      coalesce(
+        public.request_candidates.linked_provider_profile_id,
+        public.provider_applications.linked_provider_profile_id
+      ) as provider_profile_id
+    from public.project_engagements
+    join public.request_candidates
+      on public.request_candidates.id = public.project_engagements.request_candidate_id
+    join public.project_requests
+      on public.project_requests.id = public.request_candidates.project_request_id
+    left join public.provider_applications
+      on public.provider_applications.id = public.request_candidates.provider_application_id
+    where public.project_engagements.id = p_engagement_id
+  )
+  select coalesce(
+    exists (
+      select 1
+      from engagement_participants
+      join current_profile
+        on current_profile.id in (
+          engagement_participants.student_profile_id,
+          engagement_participants.provider_profile_id
+        )
+      where engagement_participants.student_profile_id is not null
+        and engagement_participants.provider_profile_id is not null
+    ),
+    false
+  );
+$function$;
+
 create policy "Engagement message active participants can select realtime rows"
   on public.engagement_messages
   for select
   to authenticated
   using (
-    exists (
-      select 1
-      from public.project_engagements as pe
-      join public.request_candidates as rc
-        on rc.id = pe.request_candidate_id
-      join public.project_requests as pr
-        on pr.id = rc.project_request_id
-      left join public.provider_applications as pa
-        on pa.id = rc.provider_application_id
-      join public.profiles as viewer
-        on viewer.id = (select auth.uid())
-      where pe.id = engagement_messages.project_engagement_id
-        and viewer.account_status = 'active'
-        and viewer.role in ('student', 'freelancer', 'both')
-        and pr.linked_student_profile_id is not null
-        and coalesce(
-          rc.linked_provider_profile_id,
-          pa.linked_provider_profile_id
-        ) is not null
-        and viewer.id in (
-          pr.linked_student_profile_id,
-          coalesce(
-            rc.linked_provider_profile_id,
-            pa.linked_provider_profile_id
-          )
-        )
-    )
+    public.can_access_engagement_chat(project_engagement_id)
   );
 
 do $$
@@ -521,6 +541,9 @@ grant execute on function public.get_my_engagement_threads(integer, integer) to 
 
 revoke all on function public.get_my_unread_message_count() from public, anon, authenticated;
 grant execute on function public.get_my_unread_message_count() to authenticated;
+
+revoke all on function public.can_access_engagement_chat(uuid) from public, anon, authenticated;
+grant execute on function public.can_access_engagement_chat(uuid) to authenticated;
 
 revoke all on function public.mark_engagement_thread_read(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.mark_engagement_thread_read(uuid, uuid) to authenticated;

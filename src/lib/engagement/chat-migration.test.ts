@@ -24,6 +24,24 @@ const realtimeUnreadMigration = readFileSync(
   "utf8",
 );
 
+const chatAccessHelper = realtimeUnreadMigration.slice(
+  realtimeUnreadMigration.indexOf(
+    "create or replace function public.can_access_engagement_chat",
+  ),
+  realtimeUnreadMigration.indexOf(
+    'create policy "Engagement message active participants can select realtime rows"',
+  ),
+);
+
+const realtimeSelectPolicy = realtimeUnreadMigration.slice(
+  realtimeUnreadMigration.indexOf(
+    'create policy "Engagement message active participants can select realtime rows"',
+  ),
+  realtimeUnreadMigration.indexOf("do $$", realtimeUnreadMigration.indexOf(
+    'create policy "Engagement message active participants can select realtime rows"',
+  )),
+);
+
 describe("engagement chat migration", () => {
   it("creates engagement-scoped messages without broad authenticated table access", () => {
     expect(migration).toContain("create table if not exists public.engagement_messages");
@@ -126,17 +144,61 @@ describe("engagement chat migration", () => {
     expect(realtimeUnreadMigration).toContain(
       'create policy "Engagement message active participants can select realtime rows"',
     );
-    expect(realtimeUnreadMigration).toContain(
-      "viewer.role in ('student', 'freelancer', 'both')",
+    expect(realtimeSelectPolicy).toContain(
+      "public.can_access_engagement_chat(project_engagement_id)",
     );
-    expect(realtimeUnreadMigration).toContain("viewer.account_status = 'active'");
-    expect(realtimeUnreadMigration).toContain(
-      "viewer.id in (\n          pr.linked_student_profile_id",
-    );
+    expect(realtimeSelectPolicy).not.toMatch(/public\.project_engagements/i);
+    expect(realtimeSelectPolicy).not.toMatch(/public\.request_candidates/i);
+    expect(realtimeSelectPolicy).not.toMatch(/public\.project_requests/i);
+    expect(realtimeSelectPolicy).not.toMatch(/public\.provider_applications/i);
+    expect(realtimeSelectPolicy).not.toMatch(/public\.profiles/i);
     expect(realtimeUnreadMigration).not.toMatch(
       /grant\s+(insert|update|delete|all)\s+on\s+table\s+public\.engagement_messages\s+to\s+authenticated/i,
     );
-    expect(realtimeUnreadMigration).not.toMatch(/viewer\.role\s*=\s*'admin'/i);
+  });
+
+  it("uses a security definer boolean helper for realtime participant authorization", () => {
+    expect(chatAccessHelper).toContain(
+      "create or replace function public.can_access_engagement_chat(p_engagement_id uuid)",
+    );
+    expect(chatAccessHelper).toContain("returns boolean");
+    expect(chatAccessHelper).toContain("security definer");
+    expect(chatAccessHelper).toContain("stable");
+    expect(chatAccessHelper).toContain("set search_path = ''");
+    expect(chatAccessHelper).toContain("profiles.id = (select auth.uid())");
+    expect(chatAccessHelper).toContain("profiles.account_status = 'active'");
+    expect(chatAccessHelper).toContain(
+      "profiles.role in ('student', 'freelancer', 'both')",
+    );
+    expect(chatAccessHelper).toContain(
+      "public.project_requests.linked_student_profile_id as student_profile_id",
+    );
+    expect(chatAccessHelper).toContain(
+      "public.request_candidates.linked_provider_profile_id",
+    );
+    expect(chatAccessHelper).toContain(
+      "public.provider_applications.linked_provider_profile_id",
+    );
+    expect(chatAccessHelper).toContain(
+      "engagement_participants.student_profile_id is not null",
+    );
+    expect(chatAccessHelper).toContain(
+      "engagement_participants.provider_profile_id is not null",
+    );
+    expect(chatAccessHelper).toContain(
+      "current_profile.id in (\n          engagement_participants.student_profile_id",
+    );
+    expect(chatAccessHelper).not.toMatch(/role\s*=\s*'admin'/i);
+    expect(chatAccessHelper).not.toMatch(/returns table/i);
+  });
+
+  it("grants realtime authorization helper execution only to authenticated users", () => {
+    expect(realtimeUnreadMigration).toContain(
+      "revoke all on function public.can_access_engagement_chat(uuid) from public, anon, authenticated",
+    );
+    expect(realtimeUnreadMigration).toContain(
+      "grant execute on function public.can_access_engagement_chat(uuid) to authenticated",
+    );
   });
 
   it("adds engagement messages to the realtime publication idempotently", () => {
@@ -197,6 +259,7 @@ describe("engagement chat migration", () => {
   it("grants unread RPC execution only to authenticated users and leaves legacy ACLs closed", () => {
     for (const fn of [
       "get_my_unread_message_count()",
+      "can_access_engagement_chat(uuid)",
       "mark_engagement_thread_read(uuid, uuid)",
     ]) {
       expect(realtimeUnreadMigration).toContain(

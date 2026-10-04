@@ -1478,6 +1478,10 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      can_access_engagement_chat: {
+        Args: { p_engagement_id: string }
+        Returns: boolean
+      }
       complete_engagement: { Args: { p_token_id: string }; Returns: string }
       create_project_engagement: {
         Args: { p_candidate_id: string; p_request_id: string }
