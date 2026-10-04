@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GlobalHeader } from "@/components/site/global-header";
+import { WorkspaceMessageRealtime } from "@/components/workspace/workspace-message-realtime";
 import { requireUser } from "@/lib/auth/user";
 import { getMyUnreadMessageCount } from "@/lib/engagement/chat";
 import { getWorkspaceNavItems } from "@/lib/workspace/roles";
@@ -15,6 +16,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <WorkspaceMessageRealtime />
       <GlobalHeader viewer={user} />
       <div className="border-b border-slate-200 bg-white">
         <nav
