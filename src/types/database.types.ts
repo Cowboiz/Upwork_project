@@ -342,6 +342,52 @@ export type Database = {
           },
         ]
       }
+      engagement_message_reads: {
+        Row: {
+          last_read_created_at: string | null
+          last_read_message_id: string | null
+          profile_id: string
+          project_engagement_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_read_created_at?: string | null
+          last_read_message_id?: string | null
+          profile_id: string
+          project_engagement_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_read_created_at?: string | null
+          last_read_message_id?: string | null
+          profile_id?: string
+          project_engagement_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_message_reads_message_watermark_fkey"
+            columns: ["last_read_message_id", "project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_messages"
+            referencedColumns: ["id", "project_engagement_id"]
+          },
+          {
+            foreignKeyName: "engagement_message_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_message_reads_project_engagement_id_fkey"
+            columns: ["project_engagement_id"]
+            isOneToOne: false
+            referencedRelation: "project_engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -1469,6 +1515,7 @@ export type Database = {
           last_message_at: string | null
           last_message_preview: string | null
           participant_side: string
+          unread_count: number
         }[]
       }
       get_my_engagement_threads: {
@@ -1484,8 +1531,10 @@ export type Database = {
           last_message_preview: string | null
           participant_side: string
           total_count: number
+          unread_count: number
         }[]
       }
+      get_my_unread_message_count: { Args: never; Returns: number }
       get_my_project_requests: {
         Args: { p_limit: number; p_offset: number }
         Returns: {
@@ -1545,6 +1594,10 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       mark_request_candidate_contacted: {
         Args: { p_candidate_id: string; p_request_id: string }
+        Returns: undefined
+      }
+      mark_engagement_thread_read: {
+        Args: { p_engagement_id: string; p_message_id: string }
         Returns: undefined
       }
       respond_to_presented_candidate: {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { GlobalHeader } from "@/components/site/global-header";
 import { requireUser } from "@/lib/auth/user";
+import { getMyUnreadMessageCount } from "@/lib/engagement/chat";
 import { getWorkspaceNavItems } from "@/lib/workspace/roles";
 
 export default async function AppLayout({
@@ -8,8 +9,9 @@ export default async function AppLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user } = await requireUser();
+  const { supabase, user } = await requireUser();
   const navItems = getWorkspaceNavItems(user.profile.role);
+  const unreadMessageCount = await getMyUnreadMessageCount(supabase);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -25,7 +27,12 @@ export default async function AppLayout({
               href={item.href}
               key={item.href}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.href === "/app/messages" && unreadMessageCount > 0 ? (
+                <span className="ml-2 rounded-full bg-blue-700 px-2 py-0.5 text-xs text-white">
+                  {unreadMessageCount}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>
