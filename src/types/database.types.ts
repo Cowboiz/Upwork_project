@@ -1573,6 +1573,56 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_project_request_detail: {
+        Args: { p_request_id: string }
+        Returns: {
+          budget_range: string
+          candidate_rank: number | null
+          category: string
+          created_at: string
+          currency: string
+          deadline: string | null
+          deadline_flexible: boolean
+          description: string
+          desired_deliverables: string | null
+          engagement_id: string | null
+          engagement_status: string | null
+          id: string
+          integrity_review_status: string
+          provider_response_status: string | null
+          request_candidate_id: string | null
+          status: string
+          student_decision_status: string | null
+          updated_at: string
+        }[]
+      }
+      get_my_provider_application_detail: {
+        Args: { p_application_id: string }
+        Returns: {
+          agreed_deadline: string | null
+          agreed_price: number | null
+          applicant_name: string
+          availability: string
+          candidate_rank: number | null
+          created_at: string
+          currency: string | null
+          engagement_id: string | null
+          engagement_status: string | null
+          id: string
+          portfolio_urls: string[]
+          preferred_project_types: string[]
+          project_request_id: string | null
+          proposed_price: number | null
+          provider_response_status: string | null
+          rate_expectations: string
+          request_candidate_id: string | null
+          request_category: string | null
+          skills: string[]
+          status: string
+          student_decision_status: string | null
+          updated_at: string
+        }[]
+      }
       get_my_engagements: {
         Args: { p_limit: number; p_offset: number }
         Returns: {
@@ -1592,6 +1642,36 @@ export type Database = {
           status: string
           submitted_at: string | null
           total_count: number
+          updated_at: string
+        }[]
+      }
+      get_my_engagement_detail: {
+        Args: { p_engagement_id: string }
+        Returns: {
+          agreed_amount: number
+          agreed_deadline: string | null
+          cancelled_at: string | null
+          candidate_rank: number | null
+          category: string
+          completed_at: string | null
+          counterparty_display_name: string
+          created_at: string
+          currency: string
+          deliverable_summary: string | null
+          deliverable_url: string | null
+          engagement_id: string
+          engagement_status: string
+          feedback_created_at: string | null
+          feedback_rating: number | null
+          feedback_text: string | null
+          participant_side: string
+          payment_status: string
+          project_request_id: string
+          provider_response_status: string
+          request_candidate_id: string
+          started_at: string | null
+          student_decision_status: string
+          submitted_at: string | null
           updated_at: string
         }[]
       }

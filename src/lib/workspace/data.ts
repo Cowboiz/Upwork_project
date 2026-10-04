@@ -15,6 +15,12 @@ export type ProviderApplicationSummary =
   Database["public"]["Functions"]["get_my_provider_applications"]["Returns"][number];
 export type EngagementSummary =
   Database["public"]["Functions"]["get_my_engagements"]["Returns"][number];
+export type ProjectRequestDetail =
+  Database["public"]["Functions"]["get_my_project_request_detail"]["Returns"][number];
+export type ProviderApplicationDetail =
+  Database["public"]["Functions"]["get_my_provider_application_detail"]["Returns"][number];
+export type EngagementDetail =
+  Database["public"]["Functions"]["get_my_engagement_detail"]["Returns"][number];
 
 export type PaginatedResult<T> =
   | {
@@ -158,4 +164,55 @@ export async function getMyEngagements(
   }
 
   return toPaginatedResult(data ?? [], page);
+}
+
+export async function getMyProjectRequestDetail(
+  supabase: SupabaseServerClient,
+  requestId: string,
+) {
+  const { data, error } = await supabase.rpc("get_my_project_request_detail", {
+    p_request_id: requestId,
+  });
+
+  if (error) {
+    logWorkspaceDataLoadFailed("project_requests");
+    return null;
+  }
+
+  return data?.[0] ?? null;
+}
+
+export async function getMyProviderApplicationDetail(
+  supabase: SupabaseServerClient,
+  applicationId: string,
+) {
+  const { data, error } = await supabase.rpc(
+    "get_my_provider_application_detail",
+    {
+      p_application_id: applicationId,
+    },
+  );
+
+  if (error) {
+    logWorkspaceDataLoadFailed("provider_applications");
+    return null;
+  }
+
+  return data?.[0] ?? null;
+}
+
+export async function getMyEngagementDetail(
+  supabase: SupabaseServerClient,
+  engagementId: string,
+) {
+  const { data, error } = await supabase.rpc("get_my_engagement_detail", {
+    p_engagement_id: engagementId,
+  });
+
+  if (error) {
+    logWorkspaceDataLoadFailed("engagements");
+    return null;
+  }
+
+  return data?.[0] ?? null;
 }
