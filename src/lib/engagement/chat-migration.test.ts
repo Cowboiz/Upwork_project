@@ -211,6 +211,32 @@ describe("engagement chat migration", () => {
     );
   });
 
+  it("drops RPC signatures before recreating unread return shapes", () => {
+    const threadDrop = realtimeUnreadMigration.indexOf(
+      "drop function if exists public.get_engagement_thread(uuid);",
+    );
+    const threadCreate = realtimeUnreadMigration.indexOf(
+      "create or replace function public.get_engagement_thread(p_engagement_id uuid)",
+    );
+    const threadsDrop = realtimeUnreadMigration.indexOf(
+      "drop function if exists public.get_my_engagement_threads(integer, integer);",
+    );
+    const threadsCreate = realtimeUnreadMigration.indexOf(
+      "create or replace function public.get_my_engagement_threads(",
+    );
+
+    expect(threadDrop).toBeGreaterThan(-1);
+    expect(threadsDrop).toBeGreaterThan(-1);
+    expect(threadDrop).toBeLessThan(threadCreate);
+    expect(threadsDrop).toBeLessThan(threadsCreate);
+    expect(realtimeUnreadMigration).not.toMatch(
+      /drop function if exists public\.get_engagement_thread\(uuid\)\s+cascade/i,
+    );
+    expect(realtimeUnreadMigration).not.toMatch(
+      /drop function if exists public\.get_my_engagement_threads\(integer,\s*integer\)\s+cascade/i,
+    );
+  });
+
   it("computes unread counts from counterpart messages newer than the watermark", () => {
     expect(realtimeUnreadMigration).toContain(
       "get_my_unread_message_count()",

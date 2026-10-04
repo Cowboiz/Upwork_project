@@ -112,6 +112,8 @@ begin
   end if;
 end $$;
 
+drop function if exists public.get_engagement_thread(uuid);
+
 create or replace function public.get_engagement_thread(p_engagement_id uuid)
   returns table (
     engagement_id uuid,
@@ -244,6 +246,8 @@ as $function$
   left join unread_messages
     on unread_messages.engagement_id = authorized.engagement_id;
 $function$;
+
+drop function if exists public.get_my_engagement_threads(integer, integer);
 
 create or replace function public.get_my_engagement_threads(
   p_limit integer,
