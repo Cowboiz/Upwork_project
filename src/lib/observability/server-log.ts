@@ -58,7 +58,12 @@ export type WorkspaceDataResource =
   | "project_requests"
   | "provider_applications";
 
-export type EngagementChatStage = "messages" | "send" | "thread" | "threads";
+export type EngagementChatStage =
+  | "messages"
+  | "send"
+  | "thread"
+  | "threads"
+  | "unread-count";
 
 export type AdminUserAuditEvent =
   | "admin_user_deactivated"
