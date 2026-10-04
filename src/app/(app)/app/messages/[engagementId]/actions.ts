@@ -13,6 +13,11 @@ const sendMessageSchema = z.object({
   engagementId: z.uuid(),
 });
 
+const markThreadReadSchema = z.object({
+  engagementId: z.uuid(),
+  messageId: z.uuid(),
+});
+
 export async function sendEngagementMessage(formData: FormData) {
   const parsed = sendMessageSchema.safeParse({
     body: formData.get("body"),
@@ -43,4 +48,33 @@ export async function sendEngagementMessage(formData: FormData) {
   revalidatePath(`/app/messages/${parsed.data.engagementId}`);
   revalidatePath("/app/messages");
   redirect(`/app/messages/${parsed.data.engagementId}`);
+}
+
+export async function markEngagementThreadRead(input: {
+  engagementId: string;
+  messageId: string;
+}) {
+  const parsed = markThreadReadSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return;
+  }
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("mark_engagement_thread_read", {
+    p_engagement_id: parsed.data.engagementId,
+    p_message_id: parsed.data.messageId,
+  });
+
+  if (error) {
+    logEngagementMessageSendFailed({
+      engagementId: parsed.data.engagementId,
+      stage: "mark-read",
+    });
+
+    return;
+  }
+
+  revalidatePath(`/app/messages/${parsed.data.engagementId}`);
+  revalidatePath("/app/messages");
 }
