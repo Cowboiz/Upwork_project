@@ -98,6 +98,20 @@ export async function getMyEngagementThreads(
   return toThreadResult(data ?? [], page);
 }
 
+export async function getMyUnreadMessageCount(supabase: Supabase) {
+  const { data, error } = await supabase.rpc("get_my_unread_message_count");
+
+  if (error) {
+    logEngagementChatLoadFailed({
+      stage: "unread-count",
+    });
+
+    return 0;
+  }
+
+  return data ?? 0;
+}
+
 export async function getEngagementThread(
   supabase: Supabase,
   engagementId: string,

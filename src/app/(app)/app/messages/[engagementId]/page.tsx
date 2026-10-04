@@ -11,6 +11,7 @@ import { isSendableEngagementStatus } from "@/lib/engagement/chat-rules";
 import { normalizePage } from "@/lib/workspace/pagination";
 import { formatDate } from "@/lib/workspace/status";
 import { sendEngagementMessage } from "./actions";
+import { ConversationRealtime } from "./conversation-realtime";
 
 type ConversationPageProps = {
   params: Promise<{
@@ -46,9 +47,15 @@ export default async function ConversationPage({
   const readOnly = !isSendableEngagementStatus(thread.engagement_status);
   const messagingUnavailable = !thread.can_send && !readOnly;
   const clientMessageId = randomUUID();
+  const latestMessageId = messages.rows.at(-1)?.id ?? null;
 
   return (
     <div className="grid gap-6">
+      <ConversationRealtime
+        engagementId={engagementId}
+        latestMessageId={latestMessageId}
+      />
+
       <header>
         <Link className="text-sm font-bold text-blue-700" href="/app/messages">
           Back to messages

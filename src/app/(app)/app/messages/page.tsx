@@ -69,7 +69,12 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
                   </p>
                 </div>
                 <div className="text-sm font-bold text-slate-700">
-                  {formatStatus(thread.engagement_status)}
+                  <span>{formatStatus(thread.engagement_status)}</span>
+                  {thread.unread_count > 0 ? (
+                    <span className="ml-3 rounded-full bg-blue-700 px-2 py-1 text-xs text-white">
+                      {thread.unread_count}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-[1fr_auto]">
