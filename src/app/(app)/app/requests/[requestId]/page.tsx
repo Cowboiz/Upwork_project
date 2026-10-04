@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/workspace/status-badge";
 import { requireUser } from "@/lib/auth/user";
-import { getMyProjectRequestDetail } from "@/lib/workspace/data";
+import {
+  getMyProjectRequestDetail,
+  getRequestMatchingCandidates,
+} from "@/lib/workspace/data";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatDate } from "@/lib/workspace/status";
 
@@ -42,6 +45,8 @@ export default async function RequestDetailPage({
   if (!request) {
     notFound();
   }
+
+  const matchingCandidates = getRequestMatchingCandidates(request);
 
   return (
     <div className="grid gap-6">
@@ -86,26 +91,51 @@ export default async function RequestDetailPage({
           />
           <DetailItem label="Created" value={formatDate(request.created_at)} />
           <DetailItem label="Updated" value={formatDate(request.updated_at)} />
-          <DetailItem
-            label="Provider response"
-            value={request.provider_response_status ?? "Not available"}
-          />
-          <DetailItem
-            label="Student decision"
-            value={request.student_decision_status ?? "Not available"}
-          />
         </dl>
-        {request.engagement_id ? (
-          <Link
-            className="button-primary mt-5 w-fit"
-            href={`/app/engagements/${request.engagement_id}`}
-          >
-            View engagement
-          </Link>
-        ) : (
-          <p className="mt-5 text-sm text-slate-600">
-            No linked engagement is available yet.
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-950">Matching candidates</h2>
+        {matchingCandidates.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">
+            No candidate lifecycle records are available yet.
           </p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {matchingCandidates.map((candidate) => (
+              <article
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                key={candidate.request_candidate_id}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-950">
+                      Candidate{" "}
+                      {candidate.candidate_rank === null
+                        ? "unranked"
+                        : `#${candidate.candidate_rank}`}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Response: {candidate.provider_response_status}
+                    </p>
+                  </div>
+                  <StatusBadge value={candidate.student_decision_status} />
+                </div>
+                {candidate.engagement_id ? (
+                  <Link
+                    className="mt-4 inline-block font-bold text-blue-700"
+                    href={`/app/engagements/${candidate.engagement_id}`}
+                  >
+                    View engagement
+                  </Link>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-600">
+                    No linked engagement for this candidate yet.
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
         )}
       </section>
     </div>

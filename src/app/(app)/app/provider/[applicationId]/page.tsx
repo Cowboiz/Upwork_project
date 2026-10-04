@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/workspace/status-badge";
 import { requireUser } from "@/lib/auth/user";
-import { getMyProviderApplicationDetail } from "@/lib/workspace/data";
+import {
+  getMyProviderApplicationDetail,
+  getProviderApplicationMatches,
+} from "@/lib/workspace/data";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatCurrency, formatDate } from "@/lib/workspace/status";
 
@@ -45,6 +48,8 @@ export default async function ProviderApplicationDetailPage({
   if (!application) {
     notFound();
   }
+
+  const matches = getProviderApplicationMatches(application);
 
   return (
     <div className="grid gap-6">
@@ -97,43 +102,63 @@ export default async function ProviderApplicationDetailPage({
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Matching</h2>
-        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-          <DetailItem
-            label="Request context"
-            value={application.request_category ?? "Not matched yet"}
-          />
-          <DetailItem
-            label="Provider response"
-            value={application.provider_response_status ?? "Not available"}
-          />
-          <DetailItem
-            label="Student decision"
-            value={application.student_decision_status ?? "Not available"}
-          />
-          <DetailItem
-            label="Proposed price"
-            value={formatCurrency(application.proposed_price, application.currency ?? "USD")}
-          />
-          <DetailItem
-            label="Agreed price"
-            value={formatCurrency(application.agreed_price, application.currency ?? "USD")}
-          />
-          <DetailItem
-            label="Agreed deadline"
-            value={formatDate(application.agreed_deadline)}
-          />
-        </dl>
-        {application.engagement_id ? (
-          <Link
-            className="button-primary mt-5 w-fit"
-            href={`/app/engagements/${application.engagement_id}`}
-          >
-            View engagement
-          </Link>
-        ) : (
-          <p className="mt-5 text-sm text-slate-600">
-            No linked engagement is available yet.
+        {matches.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">
+            No matching lifecycle records are available yet.
           </p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {matches.map((match) => (
+              <article
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                key={match.request_candidate_id}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-950">
+                      {match.request_category || "Project request"}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Candidate{" "}
+                      {match.candidate_rank === null
+                        ? "unranked"
+                        : `#${match.candidate_rank}`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge value={match.provider_response_status} />
+                    <StatusBadge value={match.student_decision_status} />
+                  </div>
+                </div>
+                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+                  <DetailItem
+                    label="Proposed price"
+                    value={formatCurrency(match.proposed_price, match.currency)}
+                  />
+                  <DetailItem
+                    label="Agreed price"
+                    value={formatCurrency(match.agreed_price, match.currency)}
+                  />
+                  <DetailItem
+                    label="Agreed deadline"
+                    value={formatDate(match.agreed_deadline)}
+                  />
+                </dl>
+                {match.engagement_id ? (
+                  <Link
+                    className="mt-4 inline-block font-bold text-blue-700"
+                    href={`/app/engagements/${match.engagement_id}`}
+                  >
+                    View engagement
+                  </Link>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-600">
+                    No linked engagement for this match yet.
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
         )}
       </section>
     </div>

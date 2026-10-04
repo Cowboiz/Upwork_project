@@ -1585,14 +1585,10 @@ export type Database = {
           deadline_flexible: boolean
           description: string
           desired_deliverables: string | null
-          engagement_id: string | null
-          engagement_status: string | null
           id: string
           integrity_review_status: string
-          provider_response_status: string | null
-          request_candidate_id: string | null
+          matching_candidates: Json
           status: string
-          student_decision_status: string | null
           updated_at: string
         }[]
       }
@@ -1603,23 +1599,14 @@ export type Database = {
           agreed_price: number | null
           applicant_name: string
           availability: string
-          candidate_rank: number | null
           created_at: string
-          currency: string | null
-          engagement_id: string | null
-          engagement_status: string | null
           id: string
+          matches: Json
           portfolio_urls: string[]
           preferred_project_types: string[]
-          project_request_id: string | null
-          proposed_price: number | null
-          provider_response_status: string | null
           rate_expectations: string
-          request_candidate_id: string | null
-          request_category: string | null
           skills: string[]
           status: string
-          student_decision_status: string | null
           updated_at: string
         }[]
       }

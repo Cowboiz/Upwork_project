@@ -12,12 +12,7 @@ returns table (
   status text,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  request_candidate_id uuid,
-  candidate_rank integer,
-  provider_response_status text,
-  student_decision_status text,
-  engagement_id uuid,
-  engagement_status text
+  matching_candidates jsonb
 )
 language sql
 stable
@@ -44,31 +39,33 @@ as $$
     project_requests.status,
     project_requests.created_at,
     project_requests.updated_at,
-    request_candidate.id as request_candidate_id,
-    request_candidate.candidate_rank,
-    request_candidate.provider_response_status,
-    request_candidate.student_decision_status,
-    project_engagements.id as engagement_id,
-    project_engagements.status as engagement_status
+    coalesce(candidate_lifecycle.matching_candidates, '[]'::jsonb) as matching_candidates
   from public.project_requests
   join current_profile
     on current_profile.id = project_requests.linked_student_profile_id
   left join lateral (
-    select
-      request_candidates.id,
-      request_candidates.candidate_rank,
-      request_candidates.provider_response_status,
-      request_candidates.student_decision_status
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'request_candidate_id', request_candidates.id,
+          'candidate_rank', request_candidates.candidate_rank,
+          'provider_response_status', request_candidates.provider_response_status,
+          'student_decision_status', request_candidates.student_decision_status,
+          'engagement_id', project_engagements.id,
+          'engagement_status', project_engagements.status
+        )
+        order by
+          request_candidates.candidate_rank asc nulls last,
+          request_candidates.created_at desc,
+          request_candidates.id desc
+      ),
+      '[]'::jsonb
+    ) as matching_candidates
     from public.request_candidates
+    left join public.project_engagements
+      on project_engagements.request_candidate_id = request_candidates.id
     where request_candidates.project_request_id = project_requests.id
-    order by
-      request_candidates.candidate_rank asc nulls last,
-      request_candidates.created_at desc,
-      request_candidates.id desc
-    limit 1
-  ) as request_candidate on true
-  left join public.project_engagements
-    on project_engagements.request_candidate_id = request_candidate.id
+  ) as candidate_lifecycle on true
   where project_requests.id = p_request_id;
 $$;
 
@@ -86,18 +83,7 @@ returns table (
   status text,
   created_at timestamp with time zone,
   updated_at timestamp with time zone,
-  request_candidate_id uuid,
-  project_request_id uuid,
-  request_category text,
-  candidate_rank integer,
-  provider_response_status text,
-  student_decision_status text,
-  proposed_price numeric,
-  agreed_price numeric,
-  agreed_deadline date,
-  currency text,
-  engagement_id uuid,
-  engagement_status text
+  matches jsonb
 )
 language sql
 stable
@@ -122,33 +108,42 @@ as $$
     provider_applications.status,
     provider_applications.created_at,
     provider_applications.updated_at,
-    request_candidates.id as request_candidate_id,
-    project_requests.id as project_request_id,
-    project_requests.category as request_category,
-    request_candidates.candidate_rank,
-    request_candidates.provider_response_status,
-    request_candidates.student_decision_status,
-    request_candidates.proposed_price,
-    request_candidates.agreed_price,
-    request_candidates.agreed_deadline,
-    request_candidates.currency,
-    project_engagements.id as engagement_id,
-    project_engagements.status as engagement_status
+    coalesce(match_lifecycle.matches, '[]'::jsonb) as matches
   from public.provider_applications
   join current_profile
     on current_profile.id = provider_applications.linked_provider_profile_id
-  left join public.request_candidates
-    on request_candidates.provider_application_id = provider_applications.id
-  left join public.project_requests
-    on project_requests.id = request_candidates.project_request_id
-  left join public.project_engagements
-    on project_engagements.request_candidate_id = request_candidates.id
-  where provider_applications.id = p_application_id
-  order by
-    request_candidates.candidate_rank asc nulls last,
-    request_candidates.created_at desc,
-    request_candidates.id desc
-  limit 1;
+  left join lateral (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'request_candidate_id', request_candidates.id,
+          'project_request_id', project_requests.id,
+          'request_category', project_requests.category,
+          'candidate_rank', request_candidates.candidate_rank,
+          'provider_response_status', request_candidates.provider_response_status,
+          'student_decision_status', request_candidates.student_decision_status,
+          'proposed_price', request_candidates.proposed_price,
+          'agreed_price', request_candidates.agreed_price,
+          'agreed_deadline', request_candidates.agreed_deadline,
+          'currency', request_candidates.currency,
+          'engagement_id', project_engagements.id,
+          'engagement_status', project_engagements.status
+        )
+        order by
+          request_candidates.candidate_rank asc nulls last,
+          request_candidates.created_at desc,
+          request_candidates.id desc
+      ),
+      '[]'::jsonb
+    ) as matches
+    from public.request_candidates
+    join public.project_requests
+      on project_requests.id = request_candidates.project_request_id
+    left join public.project_engagements
+      on project_engagements.request_candidate_id = request_candidates.id
+    where request_candidates.provider_application_id = provider_applications.id
+  ) as match_lifecycle on true
+  where provider_applications.id = p_application_id;
 $$;
 
 create or replace function public.get_my_engagement_detail(p_engagement_id uuid)

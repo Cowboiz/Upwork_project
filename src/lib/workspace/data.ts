@@ -21,6 +21,28 @@ export type ProviderApplicationDetail =
   Database["public"]["Functions"]["get_my_provider_application_detail"]["Returns"][number];
 export type EngagementDetail =
   Database["public"]["Functions"]["get_my_engagement_detail"]["Returns"][number];
+export type RequestMatchingCandidate = {
+  candidate_rank: number | null;
+  engagement_id: string | null;
+  engagement_status: string | null;
+  provider_response_status: string;
+  request_candidate_id: string;
+  student_decision_status: string;
+};
+export type ProviderApplicationMatch = {
+  agreed_deadline: string | null;
+  agreed_price: number | null;
+  candidate_rank: number | null;
+  currency: string;
+  engagement_id: string | null;
+  engagement_status: string | null;
+  project_request_id: string;
+  proposed_price: number | null;
+  provider_response_status: string;
+  request_candidate_id: string;
+  request_category: string;
+  student_decision_status: string;
+};
 
 export type PaginatedResult<T> =
   | {
@@ -164,6 +186,92 @@ export async function getMyEngagements(
   }
 
   return toPaginatedResult(data ?? [], page);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function optionalNumber(value: unknown) {
+  return typeof value === "number" ? value : null;
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function requiredString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+export function getRequestMatchingCandidates(
+  request: ProjectRequestDetail,
+): RequestMatchingCandidate[] {
+  if (!Array.isArray(request.matching_candidates)) {
+    return [];
+  }
+
+  const candidates: RequestMatchingCandidate[] = [];
+
+  for (const candidate of request.matching_candidates) {
+    if (!isRecord(candidate)) {
+      continue;
+    }
+
+    const item = {
+      candidate_rank: optionalNumber(candidate.candidate_rank),
+      engagement_id: optionalString(candidate.engagement_id),
+      engagement_status: optionalString(candidate.engagement_status),
+      provider_response_status: requiredString(
+        candidate.provider_response_status,
+      ),
+      request_candidate_id: requiredString(candidate.request_candidate_id),
+      student_decision_status: requiredString(candidate.student_decision_status),
+    };
+
+    if (item.request_candidate_id.length > 0) {
+      candidates.push(item);
+    }
+  }
+
+  return candidates;
+}
+
+export function getProviderApplicationMatches(
+  application: ProviderApplicationDetail,
+): ProviderApplicationMatch[] {
+  if (!Array.isArray(application.matches)) {
+    return [];
+  }
+
+  const matches: ProviderApplicationMatch[] = [];
+
+  for (const match of application.matches) {
+    if (!isRecord(match)) {
+      continue;
+    }
+
+    const item = {
+      agreed_deadline: optionalString(match.agreed_deadline),
+      agreed_price: optionalNumber(match.agreed_price),
+      candidate_rank: optionalNumber(match.candidate_rank),
+      currency: requiredString(match.currency) || "USD",
+      engagement_id: optionalString(match.engagement_id),
+      engagement_status: optionalString(match.engagement_status),
+      project_request_id: requiredString(match.project_request_id),
+      proposed_price: optionalNumber(match.proposed_price),
+      provider_response_status: requiredString(match.provider_response_status),
+      request_candidate_id: requiredString(match.request_candidate_id),
+      request_category: requiredString(match.request_category),
+      student_decision_status: requiredString(match.student_decision_status),
+    };
+
+    if (item.request_candidate_id.length > 0) {
+      matches.push(item);
+    }
+  }
+
+  return matches;
 }
 
 export async function getMyProjectRequestDetail(

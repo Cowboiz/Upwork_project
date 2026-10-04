@@ -5,6 +5,8 @@ import {
   getMyEngagementDetail,
   getMyProjectRequestDetail,
   getMyProviderApplicationDetail,
+  getProviderApplicationMatches,
+  getRequestMatchingCandidates,
 } from "./data";
 import { isUuid } from "./route-params";
 
@@ -97,6 +99,75 @@ describe("workspace detail route params", () => {
   });
 });
 
+describe("workspace detail JSON collections", () => {
+  it("supports multiple request candidate lifecycle entries", () => {
+    expect(
+      getRequestMatchingCandidates({
+        matching_candidates: [
+          {
+            candidate_rank: 1,
+            engagement_id: "engagement-1",
+            engagement_status: "completed",
+            provider_response_status: "interested",
+            request_candidate_id: "candidate-1",
+            student_decision_status: "accepted",
+          },
+          {
+            candidate_rank: 2,
+            engagement_id: null,
+            engagement_status: null,
+            provider_response_status: "pending",
+            request_candidate_id: "candidate-2",
+            student_decision_status: "pending",
+          },
+        ],
+      } as never),
+    ).toHaveLength(2);
+  });
+
+  it("supports multiple provider application matches and safe empty collections", () => {
+    expect(
+      getProviderApplicationMatches({
+        matches: [
+          {
+            agreed_deadline: "2026-10-29",
+            agreed_price: 100,
+            candidate_rank: 1,
+            currency: "USD",
+            engagement_id: "engagement-actual-candidate",
+            engagement_status: "completed",
+            project_request_id: "request-1",
+            proposed_price: 100,
+            provider_response_status: "interested",
+            request_candidate_id: "candidate-actual",
+            request_category: "Web app",
+            student_decision_status: "accepted",
+          },
+          {
+            agreed_deadline: null,
+            agreed_price: null,
+            candidate_rank: null,
+            currency: "USD",
+            engagement_id: null,
+            engagement_status: null,
+            project_request_id: "request-2",
+            proposed_price: null,
+            provider_response_status: "pending",
+            request_candidate_id: "candidate-pending",
+            request_category: "Data task",
+            student_decision_status: "pending",
+          },
+        ],
+      } as never),
+    ).toHaveLength(2);
+
+    expect(getProviderApplicationMatches({ matches: [] } as never)).toEqual([]);
+    expect(
+      getRequestMatchingCandidates({ matching_candidates: null } as never),
+    ).toEqual([]);
+  });
+});
+
 describe("workspace detail migration", () => {
   it("adds authenticated-only security definer detail RPCs", () => {
     for (const fn of [
@@ -142,6 +213,20 @@ describe("workspace detail migration", () => {
     expect(migration).toContain("(select auth.uid())");
     expect(migration).not.toContain("p_profile_id");
     expect(migration).not.toContain("p_user_id");
+  });
+
+  it("aggregates request and provider candidate histories without collapsing to one row", () => {
+    expect(migration).toContain("matching_candidates jsonb");
+    expect(migration).toContain("matches jsonb");
+    expect(migration).toContain("jsonb_agg(");
+    expect(migration).toContain("'[]'::jsonb");
+    expect(migration).toContain(
+      "'engagement_id', project_engagements.id",
+    );
+    expect(migration).toContain(
+      "project_engagements.request_candidate_id = request_candidates.id",
+    );
+    expect(migration).not.toMatch(/limit\s+1/i);
   });
 
   it("does not expose sensitive fields or broaden table access", () => {
