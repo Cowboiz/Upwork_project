@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth/user";
 import { getAggregateActiveCount } from "@/lib/workspace/aggregates";
 import {
@@ -46,7 +47,7 @@ export default async function AppDashboardPage() {
 
       <section className="grid gap-4 lg:grid-cols-3">
         {sections.includes("requests") && requests ? (
-          <a
+          <Link
             className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200"
             href="/app/requests"
             id="requests"
@@ -62,11 +63,11 @@ export default async function AppDashboardPage() {
                 <dd>{requests.error ? "Unavailable" : activeRequestCount}</dd>
               </div>
             </dl>
-          </a>
+          </Link>
         ) : null}
 
         {sections.includes("provider") && providerApplications ? (
-          <a
+          <Link
             className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200"
             href="/app/provider"
             id="provider"
@@ -88,10 +89,10 @@ export default async function AppDashboardPage() {
                 <dd>{formatStatusLabel(providerStatus)}</dd>
               </div>
             </dl>
-          </a>
+          </Link>
         ) : null}
 
-        <a
+        <Link
           className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200"
           href="/app/engagements"
           id="engagements"
@@ -109,7 +110,7 @@ export default async function AppDashboardPage() {
               <dd>{engagements.error ? "Unavailable" : engagements.totalCount}</dd>
             </div>
           </dl>
-        </a>
+        </Link>
 
         <div
           className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"

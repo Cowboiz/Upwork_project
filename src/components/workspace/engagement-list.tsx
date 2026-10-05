@@ -75,7 +75,13 @@ export function EngagementList({ result }: EngagementListProps) {
                 </dd>
               </div>
             </dl>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-4">
+              <Link
+                className="font-bold text-blue-700"
+                href={`/app/engagements/${engagement.engagement_id}`}
+              >
+                View details
+              </Link>
               <Link
                 className="font-bold text-blue-700"
                 href={`/app/messages/${engagement.engagement_id}`}
