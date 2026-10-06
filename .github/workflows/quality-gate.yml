@@ -86,3 +86,65 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  authenticated-browser-regression:
+    if: ${{ github.event_name != 'pull_request' && vars.AUTHENTICATED_E2E_ENABLED == 'true' }}
+    needs:
+      - quality-gate
+    runs-on: ubuntu-latest
+
+    env:
+      CI: true
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_PROVIDER_EMAIL: ${{ secrets.E2E_PROVIDER_EMAIL }}
+      E2E_PROVIDER_PASSWORD: ${{ secrets.E2E_PROVIDER_PASSWORD }}
+      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ vars.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}
+      E2E_SUPABASE_URL: ${{ vars.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.E2E_SUPABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate authenticated E2E configuration
+        run: |
+          test -n "$E2E_SUPABASE_URL"
+          test -n "$E2E_SUPABASE_PUBLISHABLE_KEY"
+          test -n "$E2E_SUPABASE_SECRET_KEY"
+          test -n "$E2E_STUDENT_EMAIL"
+          test -n "$E2E_STUDENT_PASSWORD"
+          test -n "$E2E_PROVIDER_EMAIL"
+          test -n "$E2E_PROVIDER_PASSWORD"
+          test -n "$E2E_ADMIN_EMAIL"
+          test -n "$E2E_ADMIN_PASSWORD"
+
+      - name: Authenticated lifecycle regression tests
+        run: npm run test:e2e:authenticated
+
+      - name: Upload Playwright authenticated failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-authenticated-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
