@@ -1,3 +1,121 @@
+create or replace function public.get_my_provider_application_detail(
+  p_application_id uuid
+)
+returns table (
+  id uuid,
+  applicant_name text,
+  skills text[],
+  preferred_project_types text[],
+  portfolio_urls text[],
+  availability text,
+  rate_expectations text,
+  status text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  matches jsonb
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with current_profile as (
+    select profiles.id
+    from public.profiles
+    where profiles.id = (select auth.uid())
+      and profiles.account_status = 'active'
+      and profiles.role in ('freelancer', 'both')
+  )
+  select
+    provider_applications.id,
+    provider_applications.applicant_name,
+    provider_applications.skills,
+    provider_applications.preferred_project_types,
+    provider_applications.portfolio_urls,
+    provider_applications.availability,
+    provider_applications.rate_expectations,
+    provider_applications.status,
+    provider_applications.created_at,
+    provider_applications.updated_at,
+    coalesce(match_lifecycle.matches, '[]'::jsonb) as matches
+  from public.provider_applications
+  join current_profile
+    on current_profile.id = provider_applications.linked_provider_profile_id
+  left join lateral (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'request_candidate_id', candidate_lifecycle.request_candidate_id,
+          'project_request_id', candidate_lifecycle.project_request_id,
+          'request_category', candidate_lifecycle.request_category,
+          'request_status', candidate_lifecycle.request_status,
+          'request_integrity_review_status', candidate_lifecycle.request_integrity_review_status,
+          'provider_contacted', candidate_lifecycle.provider_contacted,
+          'can_respond', candidate_lifecycle.can_respond,
+          'candidate_rank', candidate_lifecycle.candidate_rank,
+          'provider_response_status', candidate_lifecycle.provider_response_status,
+          'student_decision_status', candidate_lifecycle.student_decision_status,
+          'proposed_price', candidate_lifecycle.proposed_price,
+          'agreed_price', candidate_lifecycle.agreed_price,
+          'agreed_deadline', candidate_lifecycle.agreed_deadline,
+          'currency', candidate_lifecycle.currency,
+          'engagement_id', candidate_lifecycle.engagement_id,
+          'engagement_status', candidate_lifecycle.engagement_status
+        )
+        order by
+          candidate_lifecycle.candidate_rank asc nulls last,
+          candidate_lifecycle.candidate_created_at desc,
+          candidate_lifecycle.request_candidate_id desc
+      ),
+      '[]'::jsonb
+    ) as matches
+    from (
+      select
+        request_candidates.id as request_candidate_id,
+        request_candidates.created_at as candidate_created_at,
+        request_candidates.candidate_rank,
+        request_candidates.provider_response_status,
+        request_candidates.student_decision_status,
+        request_candidates.proposed_price,
+        request_candidates.agreed_price,
+        request_candidates.agreed_deadline,
+        request_candidates.currency,
+        project_requests.id as project_request_id,
+        project_requests.category as request_category,
+        project_requests.status as request_status,
+        project_requests.integrity_review_status as request_integrity_review_status,
+        project_engagements.id as engagement_id,
+        project_engagements.status as engagement_status,
+        exists (
+          select 1
+          from public.workflow_events
+          where workflow_events.event_name = 'provider_contacted'
+            and workflow_events.request_candidate_id = request_candidates.id
+        ) as provider_contacted,
+        provider_applications.status = 'approved'
+          and request_candidates.provider_response_status = 'pending'
+          and request_candidates.student_decision_status = 'not_presented'
+          and request_candidates.candidate_rank is null
+          and project_engagements.id is null
+          and project_requests.status = 'reviewed'
+          and project_requests.integrity_review_status = 'clear'
+          and exists (
+            select 1
+            from public.workflow_events
+            where workflow_events.event_name = 'provider_contacted'
+              and workflow_events.request_candidate_id = request_candidates.id
+          ) as can_respond
+      from public.request_candidates
+      join public.project_requests
+        on project_requests.id = request_candidates.project_request_id
+      left join public.project_engagements
+        on project_engagements.request_candidate_id = request_candidates.id
+      where request_candidates.provider_application_id = provider_applications.id
+    ) as candidate_lifecycle
+  ) as match_lifecycle on true
+  where provider_applications.id = p_application_id;
+$$;
+
 create or replace function public.respond_to_my_request_candidate(
   p_request_candidate_id uuid,
   p_response text,
@@ -99,6 +217,15 @@ begin
     or v_request.integrity_review_status <> 'clear'
   then
     raise exception 'request_not_eligible';
+  end if;
+
+  if not exists (
+    select 1
+    from public.workflow_events
+    where event_name = 'provider_contacted'
+      and request_candidate_id = v_candidate.id
+  ) then
+    raise exception 'candidate_not_contacted';
   end if;
 
   if exists (
@@ -303,6 +430,11 @@ begin
   return 'declined';
 end;
 $$;
+
+revoke all on function public.get_my_provider_application_detail(uuid) from public;
+revoke all on function public.get_my_provider_application_detail(uuid) from anon;
+revoke all on function public.get_my_provider_application_detail(uuid) from authenticated;
+grant execute on function public.get_my_provider_application_detail(uuid) to authenticated;
 
 revoke all on function public.respond_to_my_request_candidate(uuid, text, text) from public;
 revoke all on function public.respond_to_my_request_candidate(uuid, text, text) from anon;

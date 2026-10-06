@@ -24,6 +24,8 @@ function providerResponseMessage(message: string | undefined) {
       return "Your provider application is not currently approved for this match.";
     case "request_not_eligible":
       return "This request is no longer eligible for a provider response.";
+    case "candidate_not_contacted":
+      return "This match is not ready for a provider response yet.";
     case "engagement_exists":
       return "An engagement already exists for this match.";
     default:

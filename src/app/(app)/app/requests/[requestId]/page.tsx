@@ -6,6 +6,7 @@ import {
   getMyProjectRequestDetail,
   getRequestMatchingCandidates,
 } from "@/lib/workspace/data";
+import { canStudentDecideOnCandidate } from "@/lib/workspace/matching-action-state";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatDate } from "@/lib/workspace/status";
 import { decideOnMyPresentedCandidate } from "./actions";
@@ -146,11 +147,7 @@ export default async function RequestDetailPage({
                     No linked engagement for this candidate yet.
                   </p>
                 )}
-                {request.status === "reviewed" &&
-                request.integrity_review_status === "clear" &&
-                candidate.provider_response_status === "interested" &&
-                candidate.student_decision_status === "presented" &&
-                candidate.candidate_rank !== null ? (
+                {canStudentDecideOnCandidate(request, candidate) ? (
                   <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4">
                     <form action={decideOnMyPresentedCandidate} className="flex flex-wrap gap-3">
                       <input name="requestId" type="hidden" value={request.id} />

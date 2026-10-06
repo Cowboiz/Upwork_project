@@ -6,6 +6,7 @@ import {
   getMyProviderApplicationDetail,
   getProviderApplicationMatches,
 } from "@/lib/workspace/data";
+import { canProviderRespondToMatch } from "@/lib/workspace/matching-action-state";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatCurrency, formatDate } from "@/lib/workspace/status";
 import { respondToMyRequestCandidate } from "./actions";
@@ -169,11 +170,7 @@ export default async function ProviderApplicationDetailPage({
                     No linked engagement for this match yet.
                   </p>
                 )}
-                {application.status === "approved" &&
-                match.provider_response_status === "pending" &&
-                match.student_decision_status === "not_presented" &&
-                match.candidate_rank === null &&
-                match.engagement_id === null ? (
+                {canProviderRespondToMatch(match) ? (
                   <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4">
                     <form action={respondToMyRequestCandidate} className="flex flex-wrap gap-3">
                       <input name="applicationId" type="hidden" value={application.id} />

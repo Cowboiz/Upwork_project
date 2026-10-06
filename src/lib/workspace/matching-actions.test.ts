@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  canProviderRespondToMatch,
+  canStudentDecideOnCandidate,
+  deriveProviderCanRespondToMatch,
+} from "./matching-action-state";
 
 function normalizeNewlines(value: string) {
   return value.replace(/\r\n/g, "\n");
@@ -77,6 +82,8 @@ describe("authenticated matching action migration", () => {
     expect(migration).toContain("v_provider_application.status <> 'approved'");
     expect(migration).toContain("v_request.status <> 'reviewed'");
     expect(migration).toContain("v_request.integrity_review_status <> 'clear'");
+    expect(migration).toContain("event_name = 'provider_contacted'");
+    expect(migration).toContain("raise exception 'candidate_not_contacted'");
     expect(migration).toContain("from public.project_engagements");
     expect(migration).toContain("request_candidate_id = v_candidate.id");
     expect(migration).toContain("provider_response_status = p_response");
@@ -114,29 +121,159 @@ describe("authenticated matching action migration", () => {
       "grant execute on function public.respond_to_presented_candidate(uuid, text, text) to service_role",
     );
   });
+
+  it("enriches provider detail matches with safe actionability fields", () => {
+    expect(migration).toContain(
+      "create or replace function public.get_my_provider_application_detail",
+    );
+    expect(migration).toContain("'request_status', candidate_lifecycle.request_status");
+    expect(migration).toContain(
+      "'request_integrity_review_status', candidate_lifecycle.request_integrity_review_status",
+    );
+    expect(migration).toContain(
+      "'provider_contacted', candidate_lifecycle.provider_contacted",
+    );
+    expect(migration).toContain("'can_respond', candidate_lifecycle.can_respond");
+    expect(migration).not.toMatch(/workflow_events\.id|actor_user_id|metadata/);
+  });
 });
 
 describe("authenticated matching action UI", () => {
-  it("surfaces provider response actions only for pending owned matches", () => {
+  it("surfaces provider response actions only from the provider can_respond gate", () => {
     expect(providerPage).toContain("respondToMyRequestCandidate");
-    expect(providerPage).toContain('match.provider_response_status === "pending"');
-    expect(providerPage).toContain('match.student_decision_status === "not_presented"');
-    expect(providerPage).toContain("match.candidate_rank === null");
-    expect(providerPage).toContain("match.engagement_id === null");
+    expect(providerPage).toContain("canProviderRespondToMatch(match)");
     expect(providerPage).toContain('value="interested"');
     expect(providerPage).toContain('value="declined"');
     expect(providerAction).toContain('supabase.rpc("respond_to_my_request_candidate"');
+    expect(providerAction).toContain("candidate_not_contacted");
     expect(providerAction).toContain("revalidatePath(`/app/provider/${parsed.data.applicationId}`)");
   });
 
   it("surfaces student accept and decline actions only for presented interested candidates", () => {
     expect(requestPage).toContain("decideOnMyPresentedCandidate");
-    expect(requestPage).toContain('candidate.provider_response_status === "interested"');
-    expect(requestPage).toContain('candidate.student_decision_status === "presented"');
-    expect(requestPage).toContain("candidate.candidate_rank !== null");
+    expect(requestPage).toContain("canStudentDecideOnCandidate(request, candidate)");
     expect(requestPage).toContain('value="accepted"');
     expect(requestPage).toContain('value="declined"');
     expect(requestAction).toContain('supabase.rpc("decide_on_my_presented_candidate"');
     expect(requestAction).toContain("revalidatePath(`/app/requests/${parsed.data.requestId}`)");
+  });
+});
+
+describe("authenticated matching action helpers", () => {
+  const eligibleProviderMatch = {
+    application_status: "approved",
+    candidate_rank: null,
+    engagement_id: null,
+    provider_contacted: true,
+    provider_response_status: "pending",
+    request_integrity_review_status: "clear",
+    request_status: "reviewed",
+    student_decision_status: "not_presented",
+  };
+
+  it("uses the server-derived provider can_respond field as the UI gate", () => {
+    expect(canProviderRespondToMatch({ can_respond: true })).toBe(true);
+    expect(canProviderRespondToMatch({ can_respond: false })).toBe(false);
+  });
+
+  it.each([
+    ["contacted and fully eligible", {}, true],
+    ["not contacted", { provider_contacted: false }, false],
+    ["request not reviewed", { request_status: "submitted" }, false],
+    ["integrity not clear", { request_integrity_review_status: "pending" }, false],
+    ["pending false", { provider_response_status: "interested" }, false],
+    ["presented", { student_decision_status: "presented" }, false],
+    ["ranked", { candidate_rank: 1 }, false],
+    ["engagement exists", { engagement_id: "engagement-id" }, false],
+    ["application not approved", { application_status: "pending" }, false],
+  ])("derives provider response actionability: %s", (_label, overrides, expected) => {
+    expect(
+      deriveProviderCanRespondToMatch({
+        ...eligibleProviderMatch,
+        ...overrides,
+      }),
+    ).toBe(expected);
+  });
+
+  it.each([
+    [
+      "presented interested ranked eligible request",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      true,
+    ],
+    [
+      "request not reviewed",
+      { status: "submitted", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "integrity not clear",
+      { status: "reviewed", integrity_review_status: "pending" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "not presented",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_response_status: "interested",
+        student_decision_status: "not_presented",
+      },
+      false,
+    ],
+    [
+      "not interested",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_response_status: "pending",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "rank null",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: null,
+        engagement_id: null,
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "engagement exists",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: "engagement-id",
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+  ])("maps student decision actionability: %s", (_label, request, candidate, expected) => {
+    expect(canStudentDecideOnCandidate(request, candidate)).toBe(expected);
   });
 });
