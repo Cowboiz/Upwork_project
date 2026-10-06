@@ -6,12 +6,18 @@ import {
   getMyProjectRequestDetail,
   getRequestMatchingCandidates,
 } from "@/lib/workspace/data";
+import { canStudentDecideOnCandidate } from "@/lib/workspace/matching-action-state";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatDate } from "@/lib/workspace/status";
+import { decideOnMyPresentedCandidate } from "./actions";
 
 type RequestDetailPageProps = {
   params: Promise<{
     requestId: string;
+  }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
   }>;
 };
 
@@ -32,8 +38,10 @@ function DetailItem({
 
 export default async function RequestDetailPage({
   params,
+  searchParams,
 }: RequestDetailPageProps) {
   const { requestId } = await params;
+  const query = await searchParams;
 
   if (!isUuid(requestId)) {
     notFound();
@@ -65,6 +73,12 @@ export default async function RequestDetailPage({
           <StatusBadge value={request.integrity_review_status} />
         </div>
       </header>
+
+      {query.saved === "student_decision" ? (
+        <div className="notice-success">Your decision was saved.</div>
+      ) : null}
+
+      {query.error ? <div className="notice-error">{query.error}</div> : null}
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Project brief</h2>
@@ -133,6 +147,42 @@ export default async function RequestDetailPage({
                     No linked engagement for this candidate yet.
                   </p>
                 )}
+                {canStudentDecideOnCandidate(candidate) ? (
+                  <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4">
+                    <form action={decideOnMyPresentedCandidate} className="flex flex-wrap gap-3">
+                      <input name="requestId" type="hidden" value={request.id} />
+                      <input
+                        name="requestCandidateId"
+                        type="hidden"
+                        value={candidate.request_candidate_id}
+                      />
+                      <input name="decision" type="hidden" value="accepted" />
+                      <button className="button-primary" type="submit">
+                        Accept
+                      </button>
+                    </form>
+                    <form action={decideOnMyPresentedCandidate} className="grid gap-3">
+                      <input name="requestId" type="hidden" value={request.id} />
+                      <input
+                        name="requestCandidateId"
+                        type="hidden"
+                        value={candidate.request_candidate_id}
+                      />
+                      <input name="decision" type="hidden" value="declined" />
+                      <label className="form-field">
+                        <span className="form-label">Decline reason</span>
+                        <textarea
+                          className="form-input min-h-24"
+                          maxLength={1000}
+                          name="declineReason"
+                        />
+                      </label>
+                      <button className="button-secondary w-fit" type="submit">
+                        Decline
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
