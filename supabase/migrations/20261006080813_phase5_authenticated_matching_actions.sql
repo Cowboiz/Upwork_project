@@ -1,3 +1,97 @@
+create or replace function public.get_my_project_request_detail(p_request_id uuid)
+returns table (
+  id uuid,
+  category text,
+  description text,
+  desired_deliverables text,
+  deadline date,
+  deadline_flexible boolean,
+  budget_range text,
+  currency text,
+  integrity_review_status text,
+  status text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  matching_candidates jsonb
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with current_profile as (
+    select profiles.id
+    from public.profiles
+    where profiles.id = (select auth.uid())
+      and profiles.account_status = 'active'
+      and profiles.role in ('student', 'both')
+  )
+  select
+    project_requests.id,
+    project_requests.category,
+    project_requests.description,
+    project_requests.desired_deliverables,
+    project_requests.deadline,
+    project_requests.deadline_flexible,
+    project_requests.budget_range,
+    project_requests.currency,
+    project_requests.integrity_review_status,
+    project_requests.status,
+    project_requests.created_at,
+    project_requests.updated_at,
+    coalesce(candidate_lifecycle.matching_candidates, '[]'::jsonb) as matching_candidates
+  from public.project_requests
+  join current_profile
+    on current_profile.id = project_requests.linked_student_profile_id
+  left join lateral (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'request_candidate_id', candidate_items.request_candidate_id,
+          'candidate_rank', candidate_items.candidate_rank,
+          'provider_response_status', candidate_items.provider_response_status,
+          'student_decision_status', candidate_items.student_decision_status,
+          'provider_application_status', candidate_items.provider_application_status,
+          'can_decide', candidate_items.can_decide,
+          'engagement_id', candidate_items.engagement_id,
+          'engagement_status', candidate_items.engagement_status
+        )
+        order by
+          candidate_items.candidate_rank asc nulls last,
+          candidate_items.candidate_created_at desc,
+          candidate_items.request_candidate_id desc
+      ),
+      '[]'::jsonb
+    ) as matching_candidates
+    from (
+      select
+        request_candidates.id as request_candidate_id,
+        request_candidates.created_at as candidate_created_at,
+        request_candidates.candidate_rank,
+        request_candidates.provider_response_status,
+        request_candidates.student_decision_status,
+        provider_applications.status as provider_application_status,
+        project_engagements.id as engagement_id,
+        project_engagements.status as engagement_status,
+        project_requests.status = 'reviewed'
+          and project_requests.integrity_review_status = 'clear'
+          and request_candidates.provider_response_status = 'interested'
+          and request_candidates.student_decision_status = 'presented'
+          and request_candidates.candidate_rank between 1 and 3
+          and provider_applications.id is not null
+          and provider_applications.status = 'approved'
+          and project_engagements.id is null as can_decide
+      from public.request_candidates
+      left join public.provider_applications
+        on provider_applications.id = request_candidates.provider_application_id
+      left join public.project_engagements
+        on project_engagements.request_candidate_id = request_candidates.id
+      where request_candidates.project_request_id = project_requests.id
+    ) as candidate_items
+  ) as candidate_lifecycle on true
+  where project_requests.id = p_request_id;
+$$;
+
 create or replace function public.get_my_provider_application_detail(
   p_application_id uuid
 )
@@ -430,6 +524,11 @@ begin
   return 'declined';
 end;
 $$;
+
+revoke all on function public.get_my_project_request_detail(uuid) from public;
+revoke all on function public.get_my_project_request_detail(uuid) from anon;
+revoke all on function public.get_my_project_request_detail(uuid) from authenticated;
+grant execute on function public.get_my_project_request_detail(uuid) to authenticated;
 
 revoke all on function public.get_my_provider_application_detail(uuid) from public;
 revoke all on function public.get_my_provider_application_detail(uuid) from anon;

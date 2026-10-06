@@ -14,8 +14,13 @@ export type ProviderMatchLifecycleState = {
 };
 
 export type StudentCandidateActionState = {
+  can_decide: boolean;
+};
+
+export type StudentCandidateLifecycleState = {
   candidate_rank: number | null;
   engagement_id: string | null;
+  provider_application_status: string;
   provider_response_status: string;
   student_decision_status: string;
 };
@@ -40,8 +45,14 @@ export function deriveProviderCanRespondToMatch(
 }
 
 export function canStudentDecideOnCandidate(
-  request: { integrity_review_status: string; status: string },
   candidate: StudentCandidateActionState,
+) {
+  return candidate.can_decide === true;
+}
+
+export function deriveStudentCanDecideOnCandidate(
+  request: { integrity_review_status: string; status: string },
+  candidate: StudentCandidateLifecycleState,
 ) {
   return (
     request.status === "reviewed" &&
@@ -49,6 +60,9 @@ export function canStudentDecideOnCandidate(
     candidate.provider_response_status === "interested" &&
     candidate.student_decision_status === "presented" &&
     candidate.candidate_rank !== null &&
+    candidate.candidate_rank >= 1 &&
+    candidate.candidate_rank <= 3 &&
+    candidate.provider_application_status === "approved" &&
     candidate.engagement_id === null
   );
 }

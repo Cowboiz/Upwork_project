@@ -147,7 +147,7 @@ export default async function RequestDetailPage({
                     No linked engagement for this candidate yet.
                   </p>
                 )}
-                {canStudentDecideOnCandidate(request, candidate) ? (
+                {canStudentDecideOnCandidate(candidate) ? (
                   <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4">
                     <form action={decideOnMyPresentedCandidate} className="flex flex-wrap gap-3">
                       <input name="requestId" type="hidden" value={request.id} />

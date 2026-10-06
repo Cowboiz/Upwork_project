@@ -5,6 +5,7 @@ import {
   canProviderRespondToMatch,
   canStudentDecideOnCandidate,
   deriveProviderCanRespondToMatch,
+  deriveStudentCanDecideOnCandidate,
 } from "./matching-action-state";
 
 function normalizeNewlines(value: string) {
@@ -136,6 +137,25 @@ describe("authenticated matching action migration", () => {
     expect(migration).toContain("'can_respond', candidate_lifecycle.can_respond");
     expect(migration).not.toMatch(/workflow_events\.id|actor_user_id|metadata/);
   });
+
+  it("enriches request detail candidates with safe student actionability fields", () => {
+    expect(migration).toContain(
+      "create or replace function public.get_my_project_request_detail",
+    );
+    expect(migration).toContain(
+      "'provider_application_status', candidate_items.provider_application_status",
+    );
+    expect(migration).toContain("'can_decide', candidate_items.can_decide");
+    expect(migration).toContain(
+      "provider_applications.status as provider_application_status",
+    );
+    expect(migration).toContain(
+      "and request_candidates.candidate_rank between 1 and 3",
+    );
+    expect(migration).toContain("and provider_applications.id is not null");
+    expect(migration).toContain("and provider_applications.status = 'approved'");
+    expect(migration).toContain("and project_engagements.id is null as can_decide");
+  });
 });
 
 describe("authenticated matching action UI", () => {
@@ -151,7 +171,7 @@ describe("authenticated matching action UI", () => {
 
   it("surfaces student accept and decline actions only for presented interested candidates", () => {
     expect(requestPage).toContain("decideOnMyPresentedCandidate");
-    expect(requestPage).toContain("canStudentDecideOnCandidate(request, candidate)");
+    expect(requestPage).toContain("canStudentDecideOnCandidate(candidate)");
     expect(requestPage).toContain('value="accepted"');
     expect(requestPage).toContain('value="declined"');
     expect(requestAction).toContain('supabase.rpc("decide_on_my_presented_candidate"');
@@ -195,6 +215,11 @@ describe("authenticated matching action helpers", () => {
     ).toBe(expected);
   });
 
+  it("uses the server-derived student can_decide field as the UI gate", () => {
+    expect(canStudentDecideOnCandidate({ can_decide: true })).toBe(true);
+    expect(canStudentDecideOnCandidate({ can_decide: false })).toBe(false);
+  });
+
   it.each([
     [
       "presented interested ranked eligible request",
@@ -202,6 +227,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "presented",
       },
@@ -213,6 +239,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "presented",
       },
@@ -224,6 +251,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "presented",
       },
@@ -235,6 +263,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "not_presented",
       },
@@ -246,6 +275,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "pending",
         student_decision_status: "presented",
       },
@@ -257,6 +287,7 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: null,
         engagement_id: null,
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "presented",
       },
@@ -268,12 +299,61 @@ describe("authenticated matching action helpers", () => {
       {
         candidate_rank: 1,
         engagement_id: "engagement-id",
+        provider_application_status: "approved",
         provider_response_status: "interested",
         student_decision_status: "presented",
       },
       false,
     ],
-  ])("maps student decision actionability: %s", (_label, request, candidate, expected) => {
-    expect(canStudentDecideOnCandidate(request, candidate)).toBe(expected);
+    [
+      "provider pending",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_application_status: "pending",
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "provider rejected",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_application_status: "rejected",
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "provider inactive",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_application_status: "inactive",
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+    [
+      "missing provider application status",
+      { status: "reviewed", integrity_review_status: "clear" },
+      {
+        candidate_rank: 1,
+        engagement_id: null,
+        provider_application_status: "",
+        provider_response_status: "interested",
+        student_decision_status: "presented",
+      },
+      false,
+    ],
+  ])("derives student decision actionability: %s", (_label, request, candidate, expected) => {
+    expect(deriveStudentCanDecideOnCandidate(request, candidate)).toBe(expected);
   });
 });

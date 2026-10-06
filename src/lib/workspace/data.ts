@@ -22,9 +22,11 @@ export type ProviderApplicationDetail =
 export type EngagementDetail =
   Database["public"]["Functions"]["get_my_engagement_detail"]["Returns"][number];
 export type RequestMatchingCandidate = {
+  can_decide: boolean;
   candidate_rank: number | null;
   engagement_id: string | null;
   engagement_status: string | null;
+  provider_application_status: string;
   provider_response_status: string;
   request_candidate_id: string;
   student_decision_status: string;
@@ -227,9 +229,13 @@ export function getRequestMatchingCandidates(
     }
 
     const item = {
+      can_decide: requiredBoolean(candidate.can_decide),
       candidate_rank: optionalNumber(candidate.candidate_rank),
       engagement_id: optionalString(candidate.engagement_id),
       engagement_status: optionalString(candidate.engagement_status),
+      provider_application_status: requiredString(
+        candidate.provider_application_status,
+      ),
       provider_response_status: requiredString(
         candidate.provider_response_status,
       ),
