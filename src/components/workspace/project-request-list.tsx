@@ -41,6 +41,7 @@ export function ProjectRequestList({ result }: ProjectRequestListProps) {
               <th className="px-4 py-3">Budget</th>
               <th className="px-4 py-3">Deadline</th>
               <th className="px-4 py-3">Created</th>
+              <th className="px-4 py-3">Details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -70,6 +71,14 @@ export function ProjectRequestList({ result }: ProjectRequestListProps) {
                 </td>
                 <td className="px-4 py-4 text-slate-700">
                   {formatDate(request.created_at)}
+                </td>
+                <td className="px-4 py-4">
+                  <Link
+                    className="font-bold text-blue-700"
+                    href={`/app/requests/${request.id}`}
+                  >
+                    View details
+                  </Link>
                 </td>
               </tr>
             ))}
