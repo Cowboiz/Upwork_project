@@ -249,10 +249,25 @@ export async function cleanupLifecycleFixture(
     engagementId?: string;
   },
 ) {
-  const engagementIds = fixture.engagementId ? [fixture.engagementId] : [];
   const candidateIds = [fixture.candidateId];
   const providerApplicationIds = [fixture.providerApplicationId];
   const requestIds = [fixture.requestId];
+  const { data: discoveredEngagements, error: engagementLookupError } =
+    await adminClient
+      .from("project_engagements")
+      .select("id")
+      .eq("request_candidate_id", fixture.candidateId);
+
+  if (engagementLookupError) {
+    throw new Error("Could not resolve E2E engagement rows for cleanup.");
+  }
+
+  const engagementIds = [
+    ...new Set([
+      ...(fixture.engagementId ? [fixture.engagementId] : []),
+      ...(discoveredEngagements ?? []).map((engagement) => engagement.id),
+    ]),
+  ];
 
   await deleteByIds(adminClient, "engagement_message_reads", "project_engagement_id", engagementIds);
   await deleteByIds(adminClient, "engagement_messages", "project_engagement_id", engagementIds);
@@ -467,35 +482,42 @@ export async function createAcceptedEngagementFixture(
   },
 ) {
   const fixture = await createBaseLifecycleFixture(adminClient, accounts);
-  const now = new Date().toISOString();
 
-  const { error: candidateError } = await adminClient
-    .from("request_candidates")
-    .update({
-      candidate_rank: 1,
-      provider_responded_at: now,
-      provider_response_status: "interested",
-      student_decision_at: now,
-      student_decision_status: "accepted",
-    })
-    .eq("id", fixture.candidateId);
+  try {
+    const now = new Date().toISOString();
 
-  if (candidateError) {
-    throw new Error("Could not accept E2E candidate.");
+    const { error: candidateError } = await adminClient
+      .from("request_candidates")
+      .update({
+        candidate_rank: 1,
+        provider_responded_at: now,
+        provider_response_status: "interested",
+        student_decision_at: now,
+        student_decision_status: "accepted",
+      })
+      .eq("id", fixture.candidateId);
+
+    if (candidateError) {
+      throw new Error("Could not accept E2E candidate.");
+    }
+
+    const { error: requestError } = await adminClient
+      .from("project_requests")
+      .update({
+        status: "matched",
+      })
+      .eq("id", fixture.requestId);
+
+    if (requestError) {
+      throw new Error("Could not match E2E request.");
+    }
+
+    await createEngagementWithAdmin(adminRpcClient, fixture);
+  } catch (error) {
+    await cleanupLifecycleFixture(adminClient, fixture);
+
+    throw error;
   }
-
-  const { error: requestError } = await adminClient
-    .from("project_requests")
-    .update({
-      status: "matched",
-    })
-    .eq("id", fixture.requestId);
-
-  if (requestError) {
-    throw new Error("Could not match E2E request.");
-  }
-
-  await createEngagementWithAdmin(adminRpcClient, fixture);
 
   return fixture;
 }
