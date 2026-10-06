@@ -3,6 +3,7 @@ import "server-only";
 import { logWorkspaceDataLoadFailed } from "@/lib/observability/server-log";
 import type { WorkspaceDataResource } from "@/lib/observability/server-log";
 import type { Database } from "@/types/database.types";
+import type { EngagementActionState } from "./engagement-action-state";
 import { PAGE_SIZE, pageToOffset } from "./pagination";
 
 type SupabaseServerClient = Awaited<
@@ -214,6 +215,30 @@ function requiredBoolean(value: unknown) {
   return value === true;
 }
 
+export function parseEngagementActionState(
+  value: unknown,
+): EngagementActionState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const participantSide = requiredString(value.participant_side);
+
+  return {
+    can_complete: requiredBoolean(value.can_complete),
+    can_dispute: requiredBoolean(value.can_dispute),
+    can_feedback: requiredBoolean(value.can_feedback),
+    can_start: requiredBoolean(value.can_start),
+    can_submit: requiredBoolean(value.can_submit),
+    engagement_status: requiredString(value.engagement_status),
+    participant_side:
+      participantSide === "provider" || participantSide === "student"
+        ? participantSide
+        : "",
+    request_status: requiredString(value.request_status),
+  };
+}
+
 export function getRequestMatchingCandidates(
   request: ProjectRequestDetail,
 ): RequestMatchingCandidate[] {
@@ -343,4 +368,23 @@ export async function getMyEngagementDetail(
   }
 
   return data?.[0] ?? null;
+}
+
+export async function getMyEngagementActionState(
+  supabase: SupabaseServerClient,
+  engagementId: string,
+) {
+  const { data, error } = await supabase.rpc(
+    "get_my_engagement_action_state",
+    {
+      p_engagement_id: engagementId,
+    },
+  );
+
+  if (error) {
+    logWorkspaceDataLoadFailed("engagements");
+    return null;
+  }
+
+  return parseEngagementActionState(data);
 }

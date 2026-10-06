@@ -1483,6 +1483,10 @@ export type Database = {
         Returns: boolean
       }
       complete_engagement: { Args: { p_token_id: string }; Returns: string }
+      complete_my_engagement: {
+        Args: { p_engagement_id: string }
+        Returns: string
+      }
       create_project_engagement: {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: string
@@ -1497,6 +1501,10 @@ export type Database = {
       }
       dispute_engagement: {
         Args: { p_dispute_notes: string; p_token_id: string }
+        Returns: string
+      }
+      dispute_my_engagement: {
+        Args: { p_dispute_notes: string; p_engagement_id: string }
         Returns: string
       }
       get_engagement_messages: {
@@ -1640,6 +1648,10 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_engagement_action_state: {
+        Args: { p_engagement_id: string }
+        Returns: Json
+      }
       get_my_engagement_detail: {
         Args: { p_engagement_id: string }
         Returns: {
@@ -1704,6 +1716,10 @@ export type Database = {
         Returns: string
       }
       start_engagement_work: { Args: { p_token_id: string }; Returns: string }
+      start_my_engagement_work: {
+        Args: { p_engagement_id: string }
+        Returns: string
+      }
       submit_engagement_deliverable: {
         Args: {
           p_deliverable_summary?: string
@@ -1712,8 +1728,24 @@ export type Database = {
         }
         Returns: string
       }
+      submit_my_engagement_deliverable: {
+        Args: {
+          p_deliverable_summary?: string | null
+          p_deliverable_url?: string | null
+          p_engagement_id: string
+        }
+        Returns: string
+      }
       submit_engagement_feedback: {
         Args: { p_feedback_text: string; p_rating: number; p_token_id: string }
+        Returns: string
+      }
+      submit_my_engagement_feedback: {
+        Args: {
+          p_engagement_id: string
+          p_feedback_text: string
+          p_rating: number
+        }
         Returns: string
       }
       send_engagement_message: {
