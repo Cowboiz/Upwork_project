@@ -7,6 +7,7 @@ import {
 
 type TypedClient = SupabaseClient<Database>;
 type TestRole = "admin" | "student" | "freelancer";
+type TestIdentitySlug = "admin" | "aux_student" | "provider" | "student";
 type TestAccount = {
   email: string;
   id: string;
@@ -45,6 +46,10 @@ function withPlusAddress(email: string, label: string) {
   }
 
   return `${email.slice(0, atIndex)}+${label}${email.slice(atIndex)}`;
+}
+
+export function e2eProfileUsername(slug: TestIdentitySlug) {
+  return `${markerPrefix.toLowerCase()}_${slug}`;
 }
 
 export function createAdminClient(env: AuthenticatedE2EEnv) {
@@ -89,6 +94,7 @@ async function ensureAccount(
   email: string,
   password: string,
   role: TestRole,
+  slug: TestIdentitySlug,
   fullName: string,
 ): Promise<TestAccount> {
   const { data: users, error: listError } = await adminClient.auth.admin.listUsers({
@@ -144,7 +150,7 @@ async function ensureAccount(
       full_name: fullName,
       id: user.id,
       role,
-      username: `${markerPrefix.toLowerCase()}_${role}`,
+      username: e2eProfileUsername(slug),
     },
     { onConflict: "id" },
   );
@@ -190,12 +196,14 @@ export async function ensureAuthenticatedAccounts(
       env.adminEmail,
       env.adminPassword,
       "admin",
+      "admin",
       "E2E Admin",
     ),
     ensureAccount(
       adminClient,
       env.studentEmail,
       env.studentPassword,
+      "student",
       "student",
       "E2E Student",
     ),
@@ -204,6 +212,7 @@ export async function ensureAuthenticatedAccounts(
       auxiliaryStudentEmail,
       env.studentPassword,
       "student",
+      "aux_student",
       "E2E Auxiliary Student",
     ),
     ensureAccount(
@@ -211,6 +220,7 @@ export async function ensureAuthenticatedAccounts(
       env.providerEmail,
       env.providerPassword,
       "freelancer",
+      "provider",
       "E2E Provider",
     ),
   ]);
