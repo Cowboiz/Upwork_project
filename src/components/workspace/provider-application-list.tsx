@@ -75,6 +75,14 @@ export function ProviderApplicationList({ result }: ProviderApplicationListProps
                 </dd>
               </div>
             </dl>
+            <div className="mt-4">
+              <Link
+                className="font-bold text-blue-700"
+                href={`/app/provider/${application.id}`}
+              >
+                View details
+              </Link>
+            </div>
           </article>
         ))}
       </div>
