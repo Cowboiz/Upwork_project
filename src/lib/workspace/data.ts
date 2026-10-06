@@ -22,9 +22,11 @@ export type ProviderApplicationDetail =
 export type EngagementDetail =
   Database["public"]["Functions"]["get_my_engagement_detail"]["Returns"][number];
 export type RequestMatchingCandidate = {
+  can_decide: boolean;
   candidate_rank: number | null;
   engagement_id: string | null;
   engagement_status: string | null;
+  provider_application_status: string;
   provider_response_status: string;
   request_candidate_id: string;
   student_decision_status: string;
@@ -32,15 +34,19 @@ export type RequestMatchingCandidate = {
 export type ProviderApplicationMatch = {
   agreed_deadline: string | null;
   agreed_price: number | null;
+  can_respond: boolean;
   candidate_rank: number | null;
   currency: string;
   engagement_id: string | null;
   engagement_status: string | null;
   project_request_id: string;
   proposed_price: number | null;
+  provider_contacted: boolean;
   provider_response_status: string;
   request_candidate_id: string;
   request_category: string;
+  request_integrity_review_status: string;
+  request_status: string;
   student_decision_status: string;
 };
 
@@ -204,6 +210,10 @@ function requiredString(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function requiredBoolean(value: unknown) {
+  return value === true;
+}
+
 export function getRequestMatchingCandidates(
   request: ProjectRequestDetail,
 ): RequestMatchingCandidate[] {
@@ -219,9 +229,13 @@ export function getRequestMatchingCandidates(
     }
 
     const item = {
+      can_decide: requiredBoolean(candidate.can_decide),
       candidate_rank: optionalNumber(candidate.candidate_rank),
       engagement_id: optionalString(candidate.engagement_id),
       engagement_status: optionalString(candidate.engagement_status),
+      provider_application_status: requiredString(
+        candidate.provider_application_status,
+      ),
       provider_response_status: requiredString(
         candidate.provider_response_status,
       ),
@@ -254,15 +268,21 @@ export function getProviderApplicationMatches(
     const item = {
       agreed_deadline: optionalString(match.agreed_deadline),
       agreed_price: optionalNumber(match.agreed_price),
+      can_respond: requiredBoolean(match.can_respond),
       candidate_rank: optionalNumber(match.candidate_rank),
       currency: requiredString(match.currency) || "USD",
       engagement_id: optionalString(match.engagement_id),
       engagement_status: optionalString(match.engagement_status),
       project_request_id: requiredString(match.project_request_id),
       proposed_price: optionalNumber(match.proposed_price),
+      provider_contacted: requiredBoolean(match.provider_contacted),
       provider_response_status: requiredString(match.provider_response_status),
       request_candidate_id: requiredString(match.request_candidate_id),
       request_category: requiredString(match.request_category),
+      request_integrity_review_status: requiredString(
+        match.request_integrity_review_status,
+      ),
+      request_status: requiredString(match.request_status),
       student_decision_status: requiredString(match.student_decision_status),
     };
 
