@@ -1487,6 +1487,14 @@ export type Database = {
         Args: { p_candidate_id: string; p_request_id: string }
         Returns: string
       }
+      decide_on_my_presented_candidate: {
+        Args: {
+          p_decline_reason?: string | null
+          p_decision: string
+          p_request_candidate_id: string
+        }
+        Returns: string
+      }
       dispute_engagement: {
         Args: { p_dispute_notes: string; p_token_id: string }
         Returns: string
@@ -1676,6 +1684,14 @@ export type Database = {
           p_decision: string
           p_decline_reason?: string
           p_token_id: string
+        }
+        Returns: string
+      }
+      respond_to_my_request_candidate: {
+        Args: {
+          p_decline_reason?: string | null
+          p_request_candidate_id: string
+          p_response: string
         }
         Returns: string
       }

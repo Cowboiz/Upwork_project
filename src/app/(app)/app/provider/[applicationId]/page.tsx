@@ -6,12 +6,18 @@ import {
   getMyProviderApplicationDetail,
   getProviderApplicationMatches,
 } from "@/lib/workspace/data";
+import { canProviderRespondToMatch } from "@/lib/workspace/matching-action-state";
 import { isUuid } from "@/lib/workspace/route-params";
 import { formatCurrency, formatDate } from "@/lib/workspace/status";
+import { respondToMyRequestCandidate } from "./actions";
 
 type ProviderApplicationDetailPageProps = {
   params: Promise<{
     applicationId: string;
+  }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
   }>;
 };
 
@@ -32,8 +38,10 @@ function DetailItem({
 
 export default async function ProviderApplicationDetailPage({
   params,
+  searchParams,
 }: ProviderApplicationDetailPageProps) {
   const { applicationId } = await params;
+  const query = await searchParams;
 
   if (!isUuid(applicationId)) {
     notFound();
@@ -67,6 +75,12 @@ export default async function ProviderApplicationDetailPage({
           <StatusBadge tone="blue" value={application.status} />
         </div>
       </header>
+
+      {query.saved === "provider_response" ? (
+        <div className="notice-success">Your response was saved.</div>
+      ) : null}
+
+      {query.error ? <div className="notice-error">{query.error}</div> : null}
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-slate-950">Application</h2>
@@ -156,6 +170,42 @@ export default async function ProviderApplicationDetailPage({
                     No linked engagement for this match yet.
                   </p>
                 )}
+                {canProviderRespondToMatch(match) ? (
+                  <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4">
+                    <form action={respondToMyRequestCandidate} className="flex flex-wrap gap-3">
+                      <input name="applicationId" type="hidden" value={application.id} />
+                      <input
+                        name="requestCandidateId"
+                        type="hidden"
+                        value={match.request_candidate_id}
+                      />
+                      <input name="response" type="hidden" value="interested" />
+                      <button className="button-primary" type="submit">
+                        Interested
+                      </button>
+                    </form>
+                    <form action={respondToMyRequestCandidate} className="grid gap-3">
+                      <input name="applicationId" type="hidden" value={application.id} />
+                      <input
+                        name="requestCandidateId"
+                        type="hidden"
+                        value={match.request_candidate_id}
+                      />
+                      <input name="response" type="hidden" value="declined" />
+                      <label className="form-field">
+                        <span className="form-label">Decline reason</span>
+                        <textarea
+                          className="form-input min-h-24"
+                          maxLength={1000}
+                          name="declineReason"
+                        />
+                      </label>
+                      <button className="button-secondary w-fit" type="submit">
+                        Decline
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
