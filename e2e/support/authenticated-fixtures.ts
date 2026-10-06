@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../src/types/database.types";
-import type { AuthenticatedE2EEnv } from "./authenticated-env";
+import {
+  assertProjectMatchDevSupabaseUrl,
+  type AuthenticatedE2EEnv,
+} from "./authenticated-env";
 
 type TypedClient = SupabaseClient<Database>;
 type TestRole = "admin" | "student" | "freelancer";
@@ -9,6 +12,12 @@ type TestAccount = {
   id: string;
   password: string;
   role: TestRole;
+};
+type TestAccounts = {
+  admin: TestAccount;
+  auxiliaryStudent: TestAccount;
+  provider: TestAccount;
+  student: TestAccount;
 };
 type LifecycleFixture = {
   admin: TestAccount;
@@ -22,8 +31,25 @@ type LifecycleFixture = {
 };
 
 const markerPrefix = "E2E_AUTH_LIFECYCLE";
+const metadataMarkerKey = "projectmatch_e2e_fixture";
+
+function getFixtureMarker(user: { app_metadata?: Record<string, unknown> }) {
+  return user.app_metadata?.[metadataMarkerKey];
+}
+
+function withPlusAddress(email: string, label: string) {
+  const atIndex = email.lastIndexOf("@");
+
+  if (atIndex <= 0) {
+    throw new Error("E2E_STUDENT_EMAIL must be a valid email address.");
+  }
+
+  return `${email.slice(0, atIndex)}+${label}${email.slice(atIndex)}`;
+}
 
 export function createAdminClient(env: AuthenticatedE2EEnv) {
+  assertProjectMatchDevSupabaseUrl(env.supabaseUrl, "E2E_SUPABASE_URL");
+
   return createClient<Database>(env.supabaseUrl, env.supabaseSecretKey, {
     auth: {
       autoRefreshToken: false,
@@ -33,6 +59,8 @@ export function createAdminClient(env: AuthenticatedE2EEnv) {
 }
 
 export function createPublicClient(env: AuthenticatedE2EEnv) {
+  assertProjectMatchDevSupabaseUrl(env.supabaseUrl, "E2E_SUPABASE_URL");
+
   return createClient<Database>(env.supabaseUrl, env.supabasePublishableKey, {
     auth: {
       autoRefreshToken: false,
@@ -76,6 +104,9 @@ async function ensureAccount(
 
   if (!user) {
     const { data, error } = await adminClient.auth.admin.createUser({
+      app_metadata: {
+        [metadataMarkerKey]: markerPrefix,
+      },
       email,
       email_confirm: true,
       password,
@@ -87,7 +118,17 @@ async function ensureAccount(
 
     user = data.user;
   } else {
+    if (getFixtureMarker(user) !== markerPrefix) {
+      throw new Error(
+        `Configured authenticated E2E account ${email} is not marked as a ProjectMatch E2E fixture.`,
+      );
+    }
+
     const { error } = await adminClient.auth.admin.updateUserById(user.id, {
+      app_metadata: {
+        ...user.app_metadata,
+        [metadataMarkerKey]: markerPrefix,
+      },
       email_confirm: true,
       password,
     });
@@ -124,7 +165,26 @@ export async function ensureAuthenticatedAccounts(
   env: AuthenticatedE2EEnv,
   adminClient: TypedClient,
 ) {
-  const [admin, student, provider] = await Promise.all([
+  const auxiliaryStudentEmail = withPlusAddress(
+    env.studentEmail,
+    "projectmatch-e2e-aux",
+  );
+  const distinctEmails = new Set(
+    [
+      env.adminEmail,
+      env.providerEmail,
+      env.studentEmail,
+      auxiliaryStudentEmail,
+    ].map((email) => email.trim().toLowerCase()),
+  );
+
+  if (distinctEmails.size !== 4) {
+    throw new Error(
+      "Authenticated E2E primary and auxiliary account emails must be distinct.",
+    );
+  }
+
+  const [admin, student, auxiliaryStudent, provider] = await Promise.all([
     ensureAccount(
       adminClient,
       env.adminEmail,
@@ -141,6 +201,13 @@ export async function ensureAuthenticatedAccounts(
     ),
     ensureAccount(
       adminClient,
+      auxiliaryStudentEmail,
+      env.studentPassword,
+      "student",
+      "E2E Auxiliary Student",
+    ),
+    ensureAccount(
+      adminClient,
       env.providerEmail,
       env.providerPassword,
       "freelancer",
@@ -150,6 +217,7 @@ export async function ensureAuthenticatedAccounts(
 
   return {
     admin,
+    auxiliaryStudent,
     provider,
     student,
   };
@@ -218,108 +286,126 @@ export async function cleanupLifecycleFixture(
 
 async function createBaseLifecycleFixture(
   adminClient: TypedClient,
-  accounts: {
-    admin: TestAccount;
-    provider: TestAccount;
-    student: TestAccount;
-  },
+  accounts: TestAccounts,
 ): Promise<LifecycleFixture> {
   const marker = `${markerPrefix}_${crypto.randomUUID()}`;
   const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
-
-  const { data: request, error: requestError } = await adminClient
-    .from("project_requests")
-    .insert({
-      age_eligible_confirmed: true,
-      asset_links: [],
-      budget_range: "100",
-      category: marker,
-      contact_method: "email",
-      contact_permission_confirmed: true,
-      contact_value: "student@example.test",
-      currency: "USD",
-      deadline,
-      deadline_flexible: false,
-      description: `${marker} request`,
-      desired_deliverables: "A deterministic lifecycle artifact",
-      integrity_attested: true,
-      integrity_review_status: "clear",
-      linked_student_profile_id: accounts.student.id,
-      requester_name: "E2E Student",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: accounts.admin.id,
-      status: "reviewed",
-    })
-    .select("id")
-    .single();
-
-  if (requestError || !request) {
-    throw new Error("Could not create E2E project request.");
-  }
-
-  const { data: application, error: applicationError } = await adminClient
-    .from("provider_applications")
-    .insert({
-      age_eligible_confirmed: true,
-      applicant_name: marker,
-      availability: "Weekdays",
-      contact_method: "email",
-      contact_value: "provider@example.test",
-      linked_provider_profile_id: accounts.provider.id,
-      policy_accepted_at: new Date().toISOString(),
-      portfolio_urls: ["https://example.com/portfolio"],
-      preferred_project_types: ["research"],
-      privacy_acknowledged_at: new Date().toISOString(),
-      rate_expectations: "100 USD",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: accounts.admin.id,
-      skills: ["writing", "analysis"],
-      status: "approved",
-    })
-    .select("id")
-    .single();
-
-  if (applicationError || !application) {
-    throw new Error("Could not create E2E provider application.");
-  }
-
-  const { data: candidate, error: candidateError } = await adminClient
-    .from("request_candidates")
-    .insert({
-      agreed_deadline: deadline,
-      agreed_price: 100,
-      currency: "USD",
-      curated_by: accounts.admin.id,
-      linked_provider_profile_id: accounts.provider.id,
-      project_request_id: request.id,
-      proposed_price: 100,
-      provider_application_id: application.id,
-      provider_response_status: "pending",
-      scope_summary: "Authenticated lifecycle E2E scope",
-      student_decision_status: "not_presented",
-    })
-    .select("id")
-    .single();
-
-  if (candidateError || !candidate) {
-    throw new Error("Could not create E2E request candidate.");
-  }
-
-  return {
+  const partialFixture: Partial<LifecycleFixture> = {
     ...accounts,
-    candidateId: candidate.id,
     marker,
-    providerApplicationId: application.id,
-    requestId: request.id,
   };
+
+  try {
+    const { data: request, error: requestError } = await adminClient
+      .from("project_requests")
+      .insert({
+        age_eligible_confirmed: true,
+        asset_links: [],
+        budget_range: "100",
+        category: marker,
+        contact_method: "email",
+        contact_permission_confirmed: true,
+        contact_value: "student@example.test",
+        currency: "USD",
+        deadline,
+        deadline_flexible: false,
+        description: `${marker} request`,
+        desired_deliverables: "A deterministic lifecycle artifact",
+        integrity_attested: true,
+        integrity_review_status: "clear",
+        linked_student_profile_id: accounts.student.id,
+        requester_name: "E2E Student",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: accounts.admin.id,
+        status: "reviewed",
+      })
+      .select("id")
+      .single();
+
+    if (requestError || !request) {
+      throw new Error("Could not create E2E project request.");
+    }
+
+    partialFixture.requestId = request.id;
+
+    const { data: application, error: applicationError } = await adminClient
+      .from("provider_applications")
+      .insert({
+        age_eligible_confirmed: true,
+        applicant_name: marker,
+        availability: "Weekdays",
+        contact_method: "email",
+        contact_value: "provider@example.test",
+        linked_provider_profile_id: accounts.provider.id,
+        policy_accepted_at: new Date().toISOString(),
+        portfolio_urls: ["https://example.com/portfolio"],
+        preferred_project_types: ["research"],
+        privacy_acknowledged_at: new Date().toISOString(),
+        rate_expectations: "100 USD",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: accounts.admin.id,
+        skills: ["writing", "analysis"],
+        status: "approved",
+      })
+      .select("id")
+      .single();
+
+    if (applicationError || !application) {
+      throw new Error("Could not create E2E provider application.");
+    }
+
+    partialFixture.providerApplicationId = application.id;
+
+    const { data: candidate, error: candidateError } = await adminClient
+      .from("request_candidates")
+      .insert({
+        agreed_deadline: deadline,
+        agreed_price: 100,
+        currency: "USD",
+        curated_by: accounts.admin.id,
+        linked_provider_profile_id: accounts.provider.id,
+        project_request_id: request.id,
+        proposed_price: 100,
+        provider_application_id: application.id,
+        provider_response_status: "pending",
+        scope_summary: "Authenticated lifecycle E2E scope",
+        student_decision_status: "not_presented",
+      })
+      .select("id")
+      .single();
+
+    if (candidateError || !candidate) {
+      throw new Error("Could not create E2E request candidate.");
+    }
+
+    partialFixture.candidateId = candidate.id;
+
+    return partialFixture as LifecycleFixture;
+  } catch (error) {
+    if (
+      partialFixture.requestId &&
+      partialFixture.providerApplicationId &&
+      partialFixture.candidateId
+    ) {
+      await cleanupLifecycleFixture(
+        adminClient,
+        partialFixture as LifecycleFixture,
+      );
+    } else {
+      await cleanupPartialLifecycleFixture(adminClient, partialFixture);
+    }
+
+    throw error;
+  }
 }
 
 export async function createProviderPendingFixture(
   adminClient: TypedClient,
   accounts: {
     admin: TestAccount;
+    auxiliaryStudent: TestAccount;
     provider: TestAccount;
     student: TestAccount;
   },
@@ -375,6 +461,7 @@ export async function createAcceptedEngagementFixture(
   adminRpcClient: TypedClient,
   accounts: {
     admin: TestAccount;
+    auxiliaryStudent: TestAccount;
     provider: TestAccount;
     student: TestAccount;
   },
@@ -470,4 +557,59 @@ export async function readEngagementFeedback(
   }
 
   return data;
+}
+
+export async function countEngagementFeedback(
+  adminClient: TypedClient,
+  engagementId: string,
+) {
+  const { count, error } = await adminClient
+    .from("engagement_feedback")
+    .select("id", { count: "exact", head: true })
+    .eq("project_engagement_id", engagementId);
+
+  if (error) {
+    throw new Error("Could not count E2E engagement feedback.");
+  }
+
+  return count ?? 0;
+}
+
+async function cleanupPartialLifecycleFixture(
+  adminClient: TypedClient,
+  fixture: Partial<LifecycleFixture>,
+) {
+  if (fixture.candidateId) {
+    await deleteByIds(adminClient, "request_candidates", "id", [
+      fixture.candidateId,
+    ]);
+  }
+
+  if (fixture.requestId) {
+    await deleteByIds(adminClient, "workflow_events", "project_request_id", [
+      fixture.requestId,
+    ]);
+    await deleteByIds(adminClient, "email_outbox", "related_project_request_id", [
+      fixture.requestId,
+    ]);
+    await deleteByIds(adminClient, "project_requests", "id", [fixture.requestId]);
+  }
+
+  if (fixture.providerApplicationId) {
+    await deleteByIds(
+      adminClient,
+      "workflow_events",
+      "provider_application_id",
+      [fixture.providerApplicationId],
+    );
+    await deleteByIds(
+      adminClient,
+      "email_outbox",
+      "related_provider_application_id",
+      [fixture.providerApplicationId],
+    );
+    await deleteByIds(adminClient, "provider_applications", "id", [
+      fixture.providerApplicationId,
+    ]);
+  }
 }
