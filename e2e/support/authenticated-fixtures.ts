@@ -33,9 +33,45 @@ type LifecycleFixture = {
 
 const markerPrefix = "E2E_AUTH_LIFECYCLE";
 const metadataMarkerKey = "projectmatch_e2e_fixture";
+export const projectRequestFixtureValues = {
+  budgetRange: "100_300",
+  category: "other",
+} as const;
+export const requestCandidateFixtureValues = {
+  usesProviderApplicationSource: true,
+} as const;
+
+type SafePostgrestError = {
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+  message?: string;
+};
 
 function getFixtureMarker(user: { app_metadata?: Record<string, unknown> }) {
   return user.app_metadata?.[metadataMarkerKey];
+}
+
+function fixtureSetupError(stage: string, error: SafePostgrestError | null) {
+  const parts = [`Could not create E2E ${stage}.`];
+
+  if (error?.code) {
+    parts.push(`code=${error.code}`);
+  }
+
+  if (error?.message) {
+    parts.push(`message=${error.message}`);
+  }
+
+  if (error?.details) {
+    parts.push(`details=${error.details}`);
+  }
+
+  if (error?.hint) {
+    parts.push(`hint=${error.hint}`);
+  }
+
+  return new Error(parts.join(" "));
 }
 
 function withPlusAddress(email: string, label: string) {
@@ -328,8 +364,8 @@ async function createBaseLifecycleFixture(
       .insert({
         age_eligible_confirmed: true,
         asset_links: [],
-        budget_range: "100",
-        category: marker,
+        budget_range: projectRequestFixtureValues.budgetRange,
+        category: projectRequestFixtureValues.category,
         contact_method: "email",
         contact_permission_confirmed: true,
         contact_value: "student@example.test",
@@ -350,7 +386,7 @@ async function createBaseLifecycleFixture(
       .single();
 
     if (requestError || !request) {
-      throw new Error("Could not create E2E project request.");
+      throw fixtureSetupError("project request", requestError);
     }
 
     partialFixture.requestId = request.id;
@@ -378,7 +414,7 @@ async function createBaseLifecycleFixture(
       .single();
 
     if (applicationError || !application) {
-      throw new Error("Could not create E2E provider application.");
+      throw fixtureSetupError("provider application", applicationError);
     }
 
     partialFixture.providerApplicationId = application.id;
@@ -390,19 +426,20 @@ async function createBaseLifecycleFixture(
         agreed_price: 100,
         currency: "USD",
         curated_by: accounts.admin.id,
-        linked_provider_profile_id: accounts.provider.id,
         project_request_id: request.id,
         proposed_price: 100,
-        provider_application_id: application.id,
         provider_response_status: "pending",
         scope_summary: "Authenticated lifecycle E2E scope",
         student_decision_status: "not_presented",
+        ...(requestCandidateFixtureValues.usesProviderApplicationSource
+          ? { provider_application_id: application.id }
+          : { linked_provider_profile_id: accounts.provider.id }),
       })
       .select("id")
       .single();
 
     if (candidateError || !candidate) {
-      throw new Error("Could not create E2E request candidate.");
+      throw fixtureSetupError("request candidate", candidateError);
     }
 
     partialFixture.candidateId = candidate.id;
