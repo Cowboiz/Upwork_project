@@ -40,6 +40,7 @@ export const projectRequestFixtureValues = {
 export const requestCandidateFixtureValues = {
   usesProviderApplicationSource: true,
 } as const;
+export const modernSecretKeyRetryDelaysMs = [500, 1000] as const;
 
 type SafePostgrestError = {
   code?: string;
@@ -47,6 +48,8 @@ type SafePostgrestError = {
   hint?: string | null;
   message?: string;
 };
+type FetchLike = typeof fetch;
+type Delay = (milliseconds: number) => Promise<void>;
 
 function safePostgrestDetails(error: SafePostgrestError | null) {
   const parts: string[] = [];
@@ -102,19 +105,65 @@ export function normalizeModernSecretKeyHeaders(
   return headers;
 }
 
-function createModernSecretKeyFetch(privilegedKey: string) {
+async function responseIsTransientJwtClockSkew(response: Response) {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  try {
+    const body = (await response.clone().json()) as {
+      code?: unknown;
+      message?: unknown;
+    };
+
+    return (
+      body.code === "PGRST303" &&
+      typeof body.message === "string" &&
+      body.message.includes("JWT issued at future")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+export function createModernSecretKeyFetch(
+  privilegedKey: string,
+  baseFetch: FetchLike = fetch,
+  sleep: Delay = delay,
+) {
   if (!privilegedKey.startsWith("sb_secret_")) {
     return undefined;
   }
 
-  return (input: RequestInfo | URL, init?: RequestInit) => {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
-    const headers = normalizeModernSecretKeyHeaders(
-      request.headers,
-      privilegedKey,
-    );
 
-    return fetch(new Request(request, { headers }));
+    for (let attempt = 0; attempt < modernSecretKeyRetryDelaysMs.length + 1; attempt += 1) {
+      const attemptRequest = request.clone();
+      const headers = normalizeModernSecretKeyHeaders(
+        attemptRequest.headers,
+        privilegedKey,
+      );
+      const response = await baseFetch(new Request(attemptRequest, { headers }));
+
+      if (
+        attempt < modernSecretKeyRetryDelaysMs.length &&
+        (await responseIsTransientJwtClockSkew(response))
+      ) {
+        await sleep(modernSecretKeyRetryDelaysMs[attempt]);
+        continue;
+      }
+
+      return response;
+    }
+
+    throw new Error("Modern secret-key E2E fetch exhausted retries.");
   };
 }
 
@@ -283,40 +332,38 @@ export async function ensureAuthenticatedAccounts(
     );
   }
 
-  const [admin, student, auxiliaryStudent, provider] = await Promise.all([
-    ensureAccount(
-      adminClient,
-      env.adminEmail,
-      env.adminPassword,
-      "admin",
-      "admin",
-      "E2E Admin",
-    ),
-    ensureAccount(
-      adminClient,
-      env.studentEmail,
-      env.studentPassword,
-      "student",
-      "student",
-      "E2E Student",
-    ),
-    ensureAccount(
-      adminClient,
-      auxiliaryStudentEmail,
-      env.studentPassword,
-      "student",
-      "aux_student",
-      "E2E Auxiliary Student",
-    ),
-    ensureAccount(
-      adminClient,
-      env.providerEmail,
-      env.providerPassword,
-      "freelancer",
-      "provider",
-      "E2E Provider",
-    ),
-  ]);
+  const admin = await ensureAccount(
+    adminClient,
+    env.adminEmail,
+    env.adminPassword,
+    "admin",
+    "admin",
+    "E2E Admin",
+  );
+  const student = await ensureAccount(
+    adminClient,
+    env.studentEmail,
+    env.studentPassword,
+    "student",
+    "student",
+    "E2E Student",
+  );
+  const auxiliaryStudent = await ensureAccount(
+    adminClient,
+    auxiliaryStudentEmail,
+    env.studentPassword,
+    "student",
+    "aux_student",
+    "E2E Auxiliary Student",
+  );
+  const provider = await ensureAccount(
+    adminClient,
+    env.providerEmail,
+    env.providerPassword,
+    "freelancer",
+    "provider",
+    "E2E Provider",
+  );
 
   return {
     admin,
