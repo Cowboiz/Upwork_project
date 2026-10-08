@@ -48,12 +48,8 @@ type SafePostgrestError = {
   message?: string;
 };
 
-function getFixtureMarker(user: { app_metadata?: Record<string, unknown> }) {
-  return user.app_metadata?.[metadataMarkerKey];
-}
-
-function fixtureSetupError(stage: string, error: SafePostgrestError | null) {
-  const parts = [`Could not create E2E ${stage}.`];
+function safePostgrestDetails(error: SafePostgrestError | null) {
+  const parts: string[] = [];
 
   if (error?.code) {
     parts.push(`code=${error.code}`);
@@ -71,7 +67,55 @@ function fixtureSetupError(stage: string, error: SafePostgrestError | null) {
     parts.push(`hint=${error.hint}`);
   }
 
+  return parts.join(" ");
+}
+
+function getFixtureMarker(user: { app_metadata?: Record<string, unknown> }) {
+  return user.app_metadata?.[metadataMarkerKey];
+}
+
+function fixtureSetupError(stage: string, error: SafePostgrestError | null) {
+  const parts = [`Could not create E2E ${stage}.`];
+  const details = safePostgrestDetails(error);
+
+  if (details) {
+    parts.push(details);
+  }
+
   return new Error(parts.join(" "));
+}
+
+export function normalizeModernSecretKeyHeaders(
+  headersInit: HeadersInit,
+  privilegedKey: string,
+) {
+  const headers = new Headers(headersInit);
+
+  if (privilegedKey.startsWith("sb_secret_")) {
+    const authorization = headers.get("authorization");
+
+    if (authorization === `Bearer ${privilegedKey}`) {
+      headers.delete("authorization");
+    }
+  }
+
+  return headers;
+}
+
+function createModernSecretKeyFetch(privilegedKey: string) {
+  if (!privilegedKey.startsWith("sb_secret_")) {
+    return undefined;
+  }
+
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const headers = normalizeModernSecretKeyHeaders(
+      request.headers,
+      privilegedKey,
+    );
+
+    return fetch(new Request(request, { headers }));
+  };
 }
 
 function withPlusAddress(email: string, label: string) {
@@ -90,12 +134,20 @@ export function e2eProfileUsername(slug: TestIdentitySlug) {
 
 export function createAdminClient(env: AuthenticatedE2EEnv) {
   assertProjectMatchDevSupabaseUrl(env.supabaseUrl, "E2E_SUPABASE_URL");
+  const modernSecretKeyFetch = createModernSecretKeyFetch(env.supabaseSecretKey);
 
   return createClient<Database>(env.supabaseUrl, env.supabaseSecretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
+    ...(modernSecretKeyFetch
+      ? {
+          global: {
+            fetch: modernSecretKeyFetch,
+          },
+        }
+      : {}),
   });
 }
 
@@ -192,7 +244,12 @@ async function ensureAccount(
   );
 
   if (profileError) {
-    throw new Error(`Could not upsert ${role} profile for authenticated E2E.`);
+    const details = safePostgrestDetails(profileError);
+    const suffix = details ? ` ${details}` : "";
+
+    throw new Error(
+      `Could not upsert ${role} profile for authenticated E2E.${suffix}`,
+    );
   }
 
   return {
