@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   cleanupLifecycleFixtureTables,
@@ -9,6 +10,10 @@ import {
   projectRequestFixtureValues,
   requestCandidateFixtureValues,
 } from "../../../e2e/support/authenticated-fixtures";
+
+function readNormalizedText(path: string) {
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+}
 
 describe("authenticated e2e fixture usernames", () => {
   it("generates deterministic unique usernames for managed identities", () => {
@@ -41,6 +46,29 @@ describe("authenticated e2e fixture usernames", () => {
   it("does not directly delete append-only workflow events during cleanup", () => {
     expect(cleanupLifecycleFixtureTables).not.toContain("workflow_events");
     expect(cleanupPartialLifecycleFixtureTables).not.toContain("workflow_events");
+  });
+
+  it("configures authenticated CI server auth env without reusing fixture secrets", () => {
+    const workflow = readNormalizedText(".github/workflows/quality-gate.yml");
+
+    expect(workflow).toContain("authenticated-browser-regression:");
+    expect(workflow).toContain(
+      "SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}",
+    );
+    expect(workflow).toContain(
+      "E2E_SUPABASE_SECRET_KEY: ${{ secrets.E2E_SUPABASE_SECRET_KEY }}",
+    );
+    expect(workflow).toContain(
+      'echo "RATE_LIMIT_HASH_SECRET=$rate_limit_hash_secret" >> "$GITHUB_ENV"',
+    );
+    expect(workflow).toContain('test -n "$SUPABASE_SECRET_KEY"');
+    expect(workflow).toContain('test -n "$RATE_LIMIT_HASH_SECRET"');
+    expect(workflow).not.toContain(
+      "NEXT_PUBLIC_SUPABASE_SECRET_KEY",
+    );
+    expect(workflow).not.toContain(
+      "RATE_LIMIT_HASH_SECRET: ${{ secrets.",
+    );
   });
 
   it("strips only matching modern secret-key bearer authorization", () => {
