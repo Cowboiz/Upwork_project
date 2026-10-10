@@ -71,6 +71,20 @@ describe("authenticated e2e fixture usernames", () => {
     );
   });
 
+  it("keeps authenticated lifecycle timeout bounded without changing the global default", () => {
+    const authenticatedSpec = readNormalizedText(
+      "e2e/authenticated-lifecycle.spec.ts",
+    );
+    const playwrightConfig = readNormalizedText("playwright.config.ts");
+
+    expect(authenticatedSpec).toContain(
+      'test.describe("authenticated lifecycle regression", () => {',
+    );
+    expect(authenticatedSpec).toContain("test.describe.configure({\n    timeout: 90_000,");
+    expect(playwrightConfig).toContain("timeout: 30_000,");
+    expect(playwrightConfig).not.toContain("timeout: 90_000,");
+  });
+
   it("strips only matching modern secret-key bearer authorization", () => {
     const secretKey = "sb_secret_test_key";
     const headers = normalizeModernSecretKeyHeaders(

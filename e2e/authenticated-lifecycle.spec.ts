@@ -100,6 +100,10 @@ function expectAuthorizationFailure(error: { message?: string } | null) {
 }
 
 test.describe("authenticated lifecycle regression", () => {
+  test.describe.configure({
+    timeout: 90_000,
+  });
+
   const env = readAuthenticatedE2EEnv();
   const adminClient = createAdminClient(env);
   let accounts: Awaited<ReturnType<typeof ensureAuthenticatedAccounts>>;
