@@ -41,6 +41,25 @@ export const requestCandidateFixtureValues = {
   usesProviderApplicationSource: true,
 } as const;
 export const modernSecretKeyRetryDelaysMs = [500, 1000] as const;
+export const cleanupLifecycleFixtureTables = [
+  "engagement_message_reads",
+  "engagement_messages",
+  "engagement_feedback",
+  "engagement_access_tokens",
+  "email_outbox",
+  "project_engagements",
+  "provider_response_tokens",
+  "student_decision_tokens",
+  "request_candidates",
+  "project_requests",
+  "provider_applications",
+] as const;
+export const cleanupPartialLifecycleFixtureTables = [
+  "request_candidates",
+  "email_outbox",
+  "project_requests",
+  "provider_applications",
+] as const;
 
 type SafePostgrestError = {
   code?: string;
@@ -386,7 +405,10 @@ async function deleteByIds(
   const { error } = await client.from(table).delete().in(column, ids);
 
   if (error) {
-    throw new Error(`Could not delete E2E rows from ${String(table)}.`);
+    const details = safePostgrestDetails(error);
+    const suffix = details ? ` ${details}` : "";
+
+    throw new Error(`Could not delete E2E rows from ${String(table)}.${suffix}`);
   }
 }
 
@@ -424,26 +446,17 @@ export async function cleanupLifecycleFixture(
   await deleteByIds(adminClient, "engagement_feedback", "project_engagement_id", engagementIds);
   await deleteByIds(adminClient, "engagement_access_tokens", "project_engagement_id", engagementIds);
   await deleteByIds(adminClient, "email_outbox", "related_project_engagement_id", engagementIds);
-  await deleteByIds(adminClient, "workflow_events", "project_engagement_id", engagementIds);
   await deleteByIds(adminClient, "project_engagements", "id", engagementIds);
   await deleteByIds(adminClient, "provider_response_tokens", "request_candidate_id", candidateIds);
   await deleteByIds(adminClient, "student_decision_tokens", "request_candidate_id", candidateIds);
   await deleteByIds(adminClient, "email_outbox", "related_request_candidate_id", candidateIds);
-  await deleteByIds(adminClient, "workflow_events", "request_candidate_id", candidateIds);
   await deleteByIds(adminClient, "request_candidates", "id", candidateIds);
   await deleteByIds(adminClient, "email_outbox", "related_project_request_id", requestIds);
-  await deleteByIds(adminClient, "workflow_events", "project_request_id", requestIds);
   await deleteByIds(adminClient, "project_requests", "id", requestIds);
   await deleteByIds(
     adminClient,
     "email_outbox",
     "related_provider_application_id",
-    providerApplicationIds,
-  );
-  await deleteByIds(
-    adminClient,
-    "workflow_events",
-    "provider_application_id",
     providerApplicationIds,
   );
   await deleteByIds(adminClient, "provider_applications", "id", providerApplicationIds);
@@ -759,9 +772,6 @@ async function cleanupPartialLifecycleFixture(
   }
 
   if (fixture.requestId) {
-    await deleteByIds(adminClient, "workflow_events", "project_request_id", [
-      fixture.requestId,
-    ]);
     await deleteByIds(adminClient, "email_outbox", "related_project_request_id", [
       fixture.requestId,
     ]);
@@ -769,12 +779,6 @@ async function cleanupPartialLifecycleFixture(
   }
 
   if (fixture.providerApplicationId) {
-    await deleteByIds(
-      adminClient,
-      "workflow_events",
-      "provider_application_id",
-      [fixture.providerApplicationId],
-    );
     await deleteByIds(
       adminClient,
       "email_outbox",

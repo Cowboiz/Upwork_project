@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanupLifecycleFixtureTables,
+  cleanupPartialLifecycleFixtureTables,
   createModernSecretKeyFetch,
   e2eProfileUsername,
   modernSecretKeyRetryDelaysMs,
@@ -34,6 +36,11 @@ describe("authenticated e2e fixture usernames", () => {
     expect(requestCandidateFixtureValues).toEqual({
       usesProviderApplicationSource: true,
     });
+  });
+
+  it("does not directly delete append-only workflow events during cleanup", () => {
+    expect(cleanupLifecycleFixtureTables).not.toContain("workflow_events");
+    expect(cleanupPartialLifecycleFixtureTables).not.toContain("workflow_events");
   });
 
   it("strips only matching modern secret-key bearer authorization", () => {
